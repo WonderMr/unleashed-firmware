@@ -220,7 +220,6 @@ static void nfc_scene_mf_classic_dict_attack_update_view(NfcApp* instance) {
 }
 
 static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
-    uint32_t t_prep_start = furi_get_tick();
     uint32_t state =
         scene_manager_get_scene_state(instance->scene_manager, NfcSceneMfClassicDictAttack);
     if(state == DictAttackStateCUIDDictInProgress) {
@@ -285,10 +284,8 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
         } while(false);
 
         furi_string_free(cuid_dict_path);
-        FURI_LOG_D(TAG, "CUID dict phase: %lu ms", furi_get_tick() - t_prep_start);
     }
     if(state == DictAttackStateUserDictInProgress) {
-        uint32_t t_user_start = furi_get_tick();
         do {
             instance->nfc_dict_context.enhanced_dict = true;
 
@@ -334,19 +331,15 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
 
             dict_attack_set_header(instance->dict_attack, "MF Classic User Dictionary");
         } while(false);
-        FURI_LOG_D(TAG, "User dict phase: %lu ms", furi_get_tick() - t_user_start);
     }
     if(state == DictAttackStateSystemDictInProgress) {
-        uint32_t t_sys_start = furi_get_tick();
         instance->nfc_dict_context.dict = keys_dict_alloc(
             NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH,
             KeysDictModeOpenExisting,
             sizeof(MfClassicKey));
         dict_attack_set_header(instance->dict_attack, "MF Classic System Dictionary");
-        FURI_LOG_D(TAG, "System dict phase: %lu ms", furi_get_tick() - t_sys_start);
     }
 
-    FURI_LOG_D(TAG, "prepare_view total: %lu ms", furi_get_tick() - t_prep_start);
     instance->nfc_dict_context.dict_keys_total =
         keys_dict_get_total_keys(instance->nfc_dict_context.dict);
     dict_attack_set_total_dict_keys(
