@@ -116,6 +116,7 @@ typedef struct {
     uint16_t current_key_idx; // Current key index for CUID dictionary mode
     uint8_t*
         cuid_key_indices_bitmap; // Bitmap of key indices present in CUID dictionary (256 bits = 32 bytes)
+    bool nested_dicts_copied; // True if system/user dicts were pre-copied in Detect scene
 } NfcMfClassicDictAttackContext;
 
 typedef struct {

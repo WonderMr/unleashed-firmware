@@ -297,16 +297,10 @@ static void nfc_protocol_support_scene_more_info_on_exit(NfcApp* instance) {
 
 // SceneRead
 static void nfc_protocol_support_scene_read_on_enter(NfcApp* instance) {
-    popup_set_header(instance->popup, "Don't move", 85, 27, AlignCenter, AlignTop);
-    popup_set_icon(instance->popup, 12, 23, &A_Loading_24);
-
-    view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewPopup);
+    nfc_show_loading_popup(instance, true);
 
     const NfcProtocol protocol = nfc_detected_protocols_get_selected(instance->detected_protocols);
     instance->poller = nfc_poller_alloc(instance->nfc, protocol);
-
-    view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewPopup);
-    //nfc_supported_cards_load_cache(instance->nfc_supported_cards);
 
     // Start poller with the appropriate callback
     nfc_protocol_support_get(protocol, instance)->scene_read.on_enter(instance);
@@ -328,16 +322,22 @@ static bool nfc_protocol_support_scene_read_on_event(NfcApp* instance, SceneMana
         } else if(event.event == NfcCustomEventPollerIncomplete) {
             nfc_poller_stop(instance->poller);
             nfc_poller_free(instance->poller);
-            bool card_read = nfc_supported_cards_read(
-                instance->nfc_supported_cards, instance->nfc_device, instance->nfc);
+            const NfcProtocol protocol =
+                nfc_detected_protocols_get_selected(instance->detected_protocols);
+            // Skip nfc_supported_cards_read for MF Classic — dict attack handles
+            // all cards, and parse step will still identify special cards after reading.
+            // This saves ~10 seconds of plugin loading from SD card.
+            bool card_read = false;
+            if(protocol != NfcProtocolMfClassic) {
+                card_read = nfc_supported_cards_read(
+                    instance->nfc_supported_cards, instance->nfc_device, instance->nfc);
+            }
             if(card_read) {
                 notification_message(instance->notifications, &sequence_success);
                 scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
                 dolphin_deed(DolphinDeedNfcReadSuccess);
                 consumed = true;
             } else {
-                const NfcProtocol protocol =
-                    nfc_detected_protocols_get_selected(instance->detected_protocols);
                 consumed = nfc_protocol_support_get(protocol, instance)
                                ->scene_read.on_event(instance, event);
             }
@@ -368,6 +368,7 @@ static bool nfc_protocol_support_scene_read_on_event(NfcApp* instance, SceneMana
 }
 
 static void nfc_protocol_support_scene_read_on_exit(NfcApp* instance) {
+    nfc_show_loading_popup(instance, false);
     popup_reset(instance->popup);
 
     nfc_blink_stop(instance);

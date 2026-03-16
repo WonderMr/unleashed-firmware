@@ -289,15 +289,29 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
         do {
             instance->nfc_dict_context.enhanced_dict = true;
 
-            if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH)) {
-                storage_common_remove(
-                    instance->storage, NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH);
-            }
-            if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH)) {
-                storage_common_copy(
-                    instance->storage,
-                    NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH,
-                    NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH);
+            // Copy dicts only if not pre-copied in Detect scene
+            if(!instance->nfc_dict_context.nested_dicts_copied) {
+                if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH)) {
+                    storage_common_remove(
+                        instance->storage, NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH);
+                }
+                if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH)) {
+                    storage_common_copy(
+                        instance->storage,
+                        NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH,
+                        NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH);
+                }
+
+                if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_USER_PATH)) {
+                    if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH)) {
+                        storage_common_remove(
+                            instance->storage, NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH);
+                    }
+                    storage_common_copy(
+                        instance->storage,
+                        NFC_APP_MF_CLASSIC_DICT_USER_PATH,
+                        NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH);
+                }
             }
 
             if(!keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_USER_PATH)) {
@@ -305,16 +319,10 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
                 break;
             }
 
-            if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH)) {
-                storage_common_remove(instance->storage, NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH);
-            }
-            storage_common_copy(
-                instance->storage,
-                NFC_APP_MF_CLASSIC_DICT_USER_PATH,
-                NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH);
-
             instance->nfc_dict_context.dict = keys_dict_alloc(
-                NFC_APP_MF_CLASSIC_DICT_USER_PATH, KeysDictModeOpenAlways, sizeof(MfClassicKey));
+                NFC_APP_MF_CLASSIC_DICT_USER_PATH,
+                KeysDictModeOpenAlways,
+                sizeof(MfClassicKey));
             if(keys_dict_get_total_keys(instance->nfc_dict_context.dict) == 0) {
                 keys_dict_free(instance->nfc_dict_context.dict);
                 state = DictAttackStateSystemDictInProgress;
@@ -326,7 +334,9 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
     }
     if(state == DictAttackStateSystemDictInProgress) {
         instance->nfc_dict_context.dict = keys_dict_alloc(
-            NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH, KeysDictModeOpenExisting, sizeof(MfClassicKey));
+            NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH,
+            KeysDictModeOpenExisting,
+            sizeof(MfClassicKey));
         dict_attack_set_header(instance->dict_attack, "MF Classic System Dictionary");
     }
 
@@ -346,9 +356,13 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
 void nfc_scene_mf_classic_dict_attack_on_enter(void* context) {
     NfcApp* instance = context;
 
+    // Show loading during heavy dictionary I/O (replaces "Don't move" from previous scene)
+    nfc_show_loading_popup(instance, true);
     scene_manager_set_scene_state(
         instance->scene_manager, NfcSceneMfClassicDictAttack, DictAttackStateCUIDDictInProgress);
     nfc_scene_mf_classic_dict_attack_prepare_view(instance);
+    nfc_show_loading_popup(instance, false);
+
     dict_attack_set_card_state(instance->dict_attack, true);
     view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewDictAttack);
     nfc_blink_read_start(instance);
@@ -413,6 +427,7 @@ bool nfc_scene_mf_classic_dict_attack_on_event(void* context, SceneManagerEvent 
             }
         } else if(event.event == NfcCustomEventCardDetected) {
             dict_attack_set_card_state(instance->dict_attack, true);
+            view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewDictAttack);
             consumed = true;
         } else if(event.event == NfcCustomEventCardLost) {
             dict_attack_set_card_state(instance->dict_attack, false);
@@ -484,6 +499,7 @@ void nfc_scene_mf_classic_dict_attack_on_exit(void* context) {
     nfc_poller_stop(instance->poller);
     nfc_poller_free(instance->poller);
 
+    popup_reset(instance->popup);
     dict_attack_reset(instance->dict_attack);
     scene_manager_set_scene_state(
         instance->scene_manager, NfcSceneMfClassicDictAttack, DictAttackStateCUIDDictInProgress);
@@ -512,6 +528,7 @@ void nfc_scene_mf_classic_dict_attack_on_exit(void* context) {
     instance->nfc_dict_context.msb_count = 0;
     instance->nfc_dict_context.enhanced_dict = false;
     instance->nfc_dict_context.current_key_idx = 0;
+    instance->nfc_dict_context.nested_dicts_copied = false;
 
     // Clean up temporary files used for nested dictionary attack
     if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH)) {

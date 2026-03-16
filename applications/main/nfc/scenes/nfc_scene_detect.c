@@ -1,6 +1,8 @@
 #include "../nfc_app_i.h"
 #include <dolphin/dolphin.h>
 
+#define TAG "NfcDetect"
+
 void nfc_scene_detect_scan_callback(NfcScannerEvent event, void* context) {
     furi_assert(context);
 
@@ -17,7 +19,32 @@ void nfc_scene_detect_on_enter(void* context) {
     NfcApp* instance = context;
 
     nfc_show_loading_popup(instance, true);
+
     nfc_supported_cards_load_cache(instance->nfc_supported_cards);
+
+    // Pre-copy MF Classic dictionaries for potential dict attack (heavy SD I/O)
+    instance->nfc_dict_context.nested_dicts_copied = false;
+
+    if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH)) {
+        storage_common_remove(instance->storage, NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH);
+    }
+    if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH)) {
+        storage_common_copy(
+            instance->storage,
+            NFC_APP_MF_CLASSIC_DICT_SYSTEM_PATH,
+            NFC_APP_MF_CLASSIC_DICT_SYSTEM_NESTED_PATH);
+    }
+    if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH)) {
+        storage_common_remove(instance->storage, NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH);
+    }
+    if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_USER_PATH)) {
+        storage_common_copy(
+            instance->storage,
+            NFC_APP_MF_CLASSIC_DICT_USER_PATH,
+            NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH);
+    }
+    instance->nfc_dict_context.nested_dicts_copied = true;
+
     nfc_show_loading_popup(instance, false);
 
     // Setup view
@@ -63,4 +90,5 @@ void nfc_scene_detect_on_exit(void* context) {
     popup_reset(instance->popup);
 
     nfc_blink_stop(instance);
+
 }
