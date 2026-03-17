@@ -229,10 +229,10 @@ void subghz_scene_receiver_on_enter(void* context) {
         subghz_history_reset(history);
         subghz_rx_key_state_set(subghz, SubGhzRxKeyStateStart);
         subghz->idx_menu_chosen = 0;
-
-        // Build saved dump index for matching received signals to saved files
-        subghz_saved_dump_index_build(subghz->saved_dump_index);
     }
+
+    // Build or rebuild saved dump index (also handles dirty index after save)
+    subghz_saved_dump_index_build(subghz->saved_dump_index);
 
     subghz_view_receiver_set_mode(subghz->subghz_receiver, SubGhzViewReceiverModeLive);
 
