@@ -9,7 +9,6 @@
 #define TAG "SubGhzSavedDumpIndex"
 
 #define SUBGHZ_SAVED_DUMP_INDEX_MAX_ENTRIES 500
-#define SUBGHZ_SAVED_DUMP_ASSETS_PATH      SUBGHZ_APP_FOLDER "/assets"
 
 ARRAY_DEF(SubGhzSavedDumpEntryArray, SubGhzSavedDumpEntry, M_POD_OPLIST) //-V658
 
@@ -85,7 +84,7 @@ static bool subghz_saved_dump_index_dir_filter(const char* name, FileInfo* filei
     UNUSED(ctx);
     // Skip directories named "assets"
     if(fileinfo->flags & FSF_DIRECTORY) {
-        return !strstr(name, "/assets");
+        return (strcmp(name, "assets") != 0);
     }
     // Only accept .sub files
     size_t len = strlen(name);
@@ -108,19 +107,26 @@ void subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
     FuriString* protocol = furi_string_alloc();
     FuriString* filetype = furi_string_alloc();
 
+    bool scan_success = false;
+
     if(dir_walk_open(dir_walk, SUBGHZ_APP_FOLDER)) {
         FileInfo fileinfo;
+        bool walk_error = false;
         while(SubGhzSavedDumpEntryArray_size(index->entries) <
               SUBGHZ_SAVED_DUMP_INDEX_MAX_ENTRIES) {
             DirWalkResult result = dir_walk_read(dir_walk, path, &fileinfo);
-            if(result == DirWalkLast) break;
-            if(result == DirWalkError) break;
+            if(result == DirWalkLast) {
+                scan_success = true;
+                break;
+            }
+            if(result == DirWalkError) {
+                walk_error = true;
+                FURI_LOG_E(TAG, "DirWalk error during index build");
+                break;
+            }
 
             // Skip directories (DirWalk may still yield them)
             if(fileinfo.flags & FSF_DIRECTORY) continue;
-
-            // Skip assets directory
-            if(furi_string_search_str(path, "/assets/") != FURI_STRING_FAILURE) continue;
 
             // Try to read Protocol, Bit, Key from the file
             FlipperFormat* ff = flipper_format_file_alloc(storage);
@@ -158,6 +164,12 @@ void subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
 
             flipper_format_free(ff);
         }
+        // If we hit the max entries limit, consider it a success (partial but usable)
+        if(!walk_error && !scan_success) {
+            scan_success = true;
+        }
+    } else {
+        FURI_LOG_E(TAG, "Failed to open directory: %s", SUBGHZ_APP_FOLDER);
     }
 
     furi_string_free(filetype);
@@ -177,8 +189,12 @@ void subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
             subghz_saved_dump_entry_compare);
     }
 
-    index->is_built = true;
-    FURI_LOG_I(TAG, "Index built: %zu entries", count);
+    if(scan_success) {
+        index->is_built = true;
+        FURI_LOG_I(TAG, "Index built: %zu entries", count);
+    } else {
+        FURI_LOG_W(TAG, "Index build failed, will retry on next enter");
+    }
 }
 
 uint16_t subghz_saved_dump_index_lookup(

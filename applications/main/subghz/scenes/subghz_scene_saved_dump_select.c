@@ -28,7 +28,7 @@ void subghz_scene_saved_dump_select_on_enter(void* context) {
             subghz);
     }
 
-    // Store match count and pointers in scene state for use in on_event
+    // Store hash in scene state for re-lookup in on_event
     scene_manager_set_scene_state(
         subghz->scene_manager, SubGhzSceneSavedDumpSelect, hash);
 
