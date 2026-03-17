@@ -50,7 +50,9 @@ static int subghz_saved_dump_entry_compare(const void* a, const void* b) {
     const SubGhzSavedDumpEntry* eb = b;
     if(ea->hash < eb->hash) return -1;
     if(ea->hash > eb->hash) return 1;
-    return 0;
+    // Stable tie-breaker by filepath for deterministic ordering
+    return strcmp(
+        furi_string_get_cstr(ea->filepath), furi_string_get_cstr(eb->filepath));
 }
 
 SubGhzSavedDumpIndex* subghz_saved_dump_index_alloc(void) {
@@ -83,8 +85,8 @@ void subghz_saved_dump_index_set_dirty(SubGhzSavedDumpIndex* index) {
 
 static bool subghz_saved_dump_index_dir_filter(const char* name, FileInfo* fileinfo, void* ctx) {
     UNUSED(ctx);
-    // DirWalk recurses into directories unconditionally (regardless of filter),
-    // so directory filtering is handled by path check in the build loop.
+    // DirWalk recurses into directories unconditionally (regardless of filter).
+    // Skipping unwanted paths (e.g. /assets/) is done in the build loop.
     if(fileinfo->flags & FSF_DIRECTORY) {
         return false; // don't yield directories as results
     }
@@ -131,6 +133,9 @@ bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
 
             // Skip directories (DirWalk may still yield them)
             if(fileinfo.flags & FSF_DIRECTORY) continue;
+
+            // Skip files inside the assets directory
+            if(furi_string_search_str(path, "/assets/") != FURI_STRING_FAILURE) continue;
 
             // Try to read Protocol, Bit, Key from the file
             FlipperFormat* ff = flipper_format_file_alloc(storage);
