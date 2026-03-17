@@ -17,6 +17,7 @@ typedef struct {
     FuriString* saved_path; // full path to .sub file if matched, NULL otherwise
     uint16_t saved_count; // number of matching saved files (0 = not matched)
     uint32_t saved_hash; // hash used for matching
+    bool has_saved_hash; // true if saved_hash was computed for this item
 } SubGhzHistoryItem;
 
 ARRAY_DEF(SubGhzHistoryItemArray, SubGhzHistoryItem, M_POD_OPLIST) //-V658
@@ -230,6 +231,7 @@ bool subghz_history_add_to_history(
     item->saved_path = NULL;
     item->saved_count = 0;
     item->saved_hash = 0;
+    item->has_saved_hash = false;
     item->flipper_string = flipper_format_string_alloc();
     subghz_protocol_decoder_base_serialize(decoder_base, item->flipper_string, preset);
 
@@ -342,7 +344,17 @@ uint32_t subghz_history_get_saved_hash(SubGhzHistory* instance, uint16_t idx) {
 void subghz_history_set_saved_hash(SubGhzHistory* instance, uint16_t idx, uint32_t hash) {
     furi_assert(instance);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    if(item) item->saved_hash = hash;
+    if(item) {
+        item->saved_hash = hash;
+        item->has_saved_hash = true;
+    }
+}
+
+bool subghz_history_has_saved_hash(SubGhzHistory* instance, uint16_t idx) {
+    furi_assert(instance);
+    SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+    if(!item) return false;
+    return item->has_saved_hash;
 }
 
 void subghz_history_clear_all_saved_info(SubGhzHistory* instance) {

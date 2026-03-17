@@ -245,8 +245,8 @@ void subghz_scene_receiver_on_enter(void* context) {
         FuriString* re_name = furi_string_alloc();
         FuriString* re_path = furi_string_alloc();
         for(uint16_t i = 0; i < subghz_history_get_item(history); i++) {
+            if(!subghz_history_has_saved_hash(history, i)) continue;
             uint32_t h = subghz_history_get_saved_hash(history, i);
-            if(h == 0) continue;
 
             furi_string_reset(re_name);
             furi_string_reset(re_path);

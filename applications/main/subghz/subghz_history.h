@@ -176,6 +176,9 @@ uint32_t subghz_history_get_saved_hash(SubGhzHistory* instance, uint16_t idx);
  */
 void subghz_history_set_saved_hash(SubGhzHistory* instance, uint16_t idx, uint32_t hash);
 
+/** Check if history[idx] has a computed saved hash (valid even if hash == 0) */
+bool subghz_history_has_saved_hash(SubGhzHistory* instance, uint16_t idx);
+
 /** Clear saved match metadata from all history items.
  *  Called when the saved dump index is rebuilt so stale data doesn't persist.
  */
