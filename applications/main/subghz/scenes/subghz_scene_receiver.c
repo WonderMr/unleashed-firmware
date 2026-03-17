@@ -156,6 +156,9 @@ static void subghz_scene_add_to_history_callback(
                             uint16_t match_count = subghz_saved_dump_index_lookup(
                                 subghz->saved_dump_index, hash, saved_name, saved_path);
 
+                            // Always store hash so re-lookup works after index rebuild
+                            subghz_history_set_saved_hash(history, idx, hash);
+
                             if(match_count > 0) {
                                 // Cap to selectable limit for display
                                 uint16_t display_count = match_count;
@@ -178,7 +181,6 @@ static void subghz_scene_add_to_history_callback(
                                     furi_string_get_cstr(display_name),
                                     furi_string_get_cstr(saved_path),
                                     display_count);
-                                subghz_history_set_saved_hash(history, idx, hash);
                                 furi_string_free(display_name);
                             }
 

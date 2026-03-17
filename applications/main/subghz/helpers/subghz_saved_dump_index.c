@@ -5,6 +5,7 @@
 #include <lib/flipper_format/flipper_format.h>
 #include <lib/subghz/types.h>
 #include <m-array.h>
+#include <string.h>
 
 #define TAG "SubGhzSavedDumpIndex"
 
