@@ -20,8 +20,9 @@ void subghz_scene_saved_dump_select_on_enter(void* context) {
         subghz->saved_dump_index, hash, matches, SUBGHZ_SAVED_DUMP_MAX_SELECTABLE);
 
     if(match_count == 0) {
-        // Index was rebuilt/cleared, no matches — fall back to receiver info
-        scene_manager_next_scene(subghz->scene_manager, SubGhzSceneReceiverInfo);
+        // Index was rebuilt/cleared, no matches — go back to receiver
+        scene_manager_search_and_switch_to_previous_scene(
+            subghz->scene_manager, SubGhzSceneReceiver);
         return;
     }
 

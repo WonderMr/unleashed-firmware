@@ -16,8 +16,11 @@ typedef struct {
 SubGhzSavedDumpIndex* subghz_saved_dump_index_alloc(void);
 void subghz_saved_dump_index_free(SubGhzSavedDumpIndex* index);
 
-/** Build index by scanning SD card for .sub files */
-void subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index);
+/** Build index by scanning SD card for .sub files.
+ * Returns true if a rebuild actually occurred (index was dirty/unbuilt),
+ * false if the index was already up-to-date.
+ */
+bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index);
 
 /** Mark index as needing rebuild on next build() call */
 void subghz_saved_dump_index_set_dirty(SubGhzSavedDumpIndex* index);

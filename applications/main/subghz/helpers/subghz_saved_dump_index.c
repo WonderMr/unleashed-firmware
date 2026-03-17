@@ -91,10 +91,10 @@ static bool subghz_saved_dump_index_dir_filter(const char* name, FileInfo* filei
     return (len > 4 && strcmp(name + len - 4, ".sub") == 0);
 }
 
-void subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
+bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
     furi_assert(index);
 
-    if(index->is_built) return;
+    if(index->is_built) return false;
 
     subghz_saved_dump_index_clear_entries(index);
 
@@ -195,6 +195,8 @@ void subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
     } else {
         FURI_LOG_W(TAG, "Index build failed, will retry on next enter");
     }
+
+    return true; // rebuild occurred (even if scan failed)
 }
 
 uint16_t subghz_saved_dump_index_lookup(

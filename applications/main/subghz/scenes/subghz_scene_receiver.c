@@ -236,8 +236,12 @@ void subghz_scene_receiver_on_enter(void* context) {
         subghz->idx_menu_chosen = 0;
     }
 
-    // Build or rebuild saved dump index (also handles dirty index after save)
-    subghz_saved_dump_index_build(subghz->saved_dump_index);
+    // Build or rebuild saved dump index (also handles dirty index after save/delete).
+    // If a rebuild occurred, clear stale saved-match metadata from history items
+    // so they get fresh lookups from the menu display and OK handler.
+    if(subghz_saved_dump_index_build(subghz->saved_dump_index)) {
+        subghz_history_clear_all_saved_info(history);
+    }
 
     subghz_view_receiver_set_mode(subghz->subghz_receiver, SubGhzViewReceiverModeLive);
 

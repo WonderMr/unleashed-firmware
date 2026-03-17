@@ -344,3 +344,18 @@ void subghz_history_set_saved_hash(SubGhzHistory* instance, uint16_t idx, uint32
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
     if(item) item->saved_hash = hash;
 }
+
+void subghz_history_clear_all_saved_info(SubGhzHistory* instance) {
+    furi_assert(instance);
+    for
+        M_EACH(item, instance->history->data, SubGhzHistoryItemArray_t) {
+            if(item->saved_name) {
+                furi_string_reset(item->saved_name);
+            }
+            if(item->saved_path) {
+                furi_string_reset(item->saved_path);
+            }
+            item->saved_count = 0;
+            item->saved_hash = 0;
+        }
+}
