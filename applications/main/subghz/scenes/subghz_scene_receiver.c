@@ -157,13 +157,18 @@ static void subghz_scene_add_to_history_callback(
                                 subghz->saved_dump_index, hash, saved_name, saved_path);
 
                             if(match_count > 0) {
+                                // Cap to selectable limit for display
+                                uint16_t display_count = match_count;
+                                if(display_count > SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) {
+                                    display_count = SUBGHZ_SAVED_DUMP_MAX_SELECTABLE;
+                                }
                                 FuriString* display_name = furi_string_alloc();
-                                if(match_count > 1) {
+                                if(display_count > 1) {
                                     furi_string_printf(
                                         display_name,
                                         "%s (+%u)",
                                         furi_string_get_cstr(saved_name),
-                                        match_count - 1);
+                                        display_count - 1);
                                 } else {
                                     furi_string_set(display_name, saved_name);
                                 }
@@ -172,7 +177,7 @@ static void subghz_scene_add_to_history_callback(
                                     idx,
                                     furi_string_get_cstr(display_name),
                                     furi_string_get_cstr(saved_path),
-                                    match_count);
+                                    display_count);
                                 subghz_history_set_saved_hash(history, idx, hash);
                                 furi_string_free(display_name);
                             }
@@ -331,6 +336,10 @@ bool subghz_scene_receiver_on_event(void* context, SceneManagerEvent event) {
                         scene_manager_next_scene(
                             subghz->scene_manager, SubGhzSceneReceiverInfo);
                     }
+                } else {
+                    // Path missing, fall back to receiver info
+                    scene_manager_next_scene(
+                        subghz->scene_manager, SubGhzSceneReceiverInfo);
                 }
             } else if(saved_count > 1) {
                 // Multiple matches: show selection submenu

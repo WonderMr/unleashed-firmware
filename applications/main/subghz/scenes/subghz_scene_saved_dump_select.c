@@ -3,7 +3,7 @@
 
 #define TAG "SubGhzSceneSavedDumpSelect"
 
-#define SAVED_DUMP_SELECT_MAX_MATCHES 20
+// Max matches defined in subghz_saved_dump_index.h as SUBGHZ_SAVED_DUMP_MAX_SELECTABLE
 
 static void subghz_scene_saved_dump_select_submenu_callback(void* context, uint32_t index) {
     SubGhz* subghz = context;
@@ -15,9 +15,15 @@ void subghz_scene_saved_dump_select_on_enter(void* context) {
 
     uint32_t hash = subghz_history_get_saved_hash(subghz->history, subghz->idx_menu_chosen);
 
-    SubGhzSavedDumpEntry* matches[SAVED_DUMP_SELECT_MAX_MATCHES];
+    SubGhzSavedDumpEntry* matches[SUBGHZ_SAVED_DUMP_MAX_SELECTABLE];
     uint16_t match_count = subghz_saved_dump_index_get_matches(
-        subghz->saved_dump_index, hash, matches, SAVED_DUMP_SELECT_MAX_MATCHES);
+        subghz->saved_dump_index, hash, matches, SUBGHZ_SAVED_DUMP_MAX_SELECTABLE);
+
+    if(match_count == 0) {
+        // Index was rebuilt/cleared, no matches — fall back to receiver info
+        scene_manager_next_scene(subghz->scene_manager, SubGhzSceneReceiverInfo);
+        return;
+    }
 
     for(uint16_t i = 0; i < match_count; i++) {
         submenu_add_item(
@@ -42,9 +48,9 @@ bool subghz_scene_saved_dump_select_on_event(void* context, SceneManagerEvent ev
         uint32_t hash = scene_manager_get_scene_state(
             subghz->scene_manager, SubGhzSceneSavedDumpSelect);
 
-        SubGhzSavedDumpEntry* matches[SAVED_DUMP_SELECT_MAX_MATCHES];
+        SubGhzSavedDumpEntry* matches[SUBGHZ_SAVED_DUMP_MAX_SELECTABLE];
         uint16_t match_count = subghz_saved_dump_index_get_matches(
-            subghz->saved_dump_index, hash, matches, SAVED_DUMP_SELECT_MAX_MATCHES);
+            subghz->saved_dump_index, hash, matches, SUBGHZ_SAVED_DUMP_MAX_SELECTABLE);
 
         uint32_t selected = event.event;
         if(selected < match_count) {

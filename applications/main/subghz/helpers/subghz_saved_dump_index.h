@@ -3,6 +3,8 @@
 #include <furi.h>
 #include <stdint.h>
 
+#define SUBGHZ_SAVED_DUMP_MAX_SELECTABLE 20
+
 typedef struct SubGhzSavedDumpIndex SubGhzSavedDumpIndex;
 
 typedef struct {

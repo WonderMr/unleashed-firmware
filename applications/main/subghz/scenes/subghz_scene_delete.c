@@ -67,6 +67,9 @@ bool subghz_scene_delete_on_event(void* context, SceneManagerEvent event) {
         if(event.event == SubGhzCustomEventSceneDelete) {
             furi_string_set(subghz->file_path_tmp, subghz->file_path);
             if(subghz_delete_file(subghz)) {
+                if(subghz->saved_dump_index) {
+                    subghz_saved_dump_index_set_dirty(subghz->saved_dump_index);
+                }
                 scene_manager_next_scene(subghz->scene_manager, SubGhzSceneDeleteSuccess);
             } else {
                 scene_manager_search_and_switch_to_previous_scene(
