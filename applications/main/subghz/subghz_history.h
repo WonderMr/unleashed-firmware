@@ -160,11 +160,12 @@ const char* subghz_history_get_saved_path(SubGhzHistory* instance, uint16_t idx)
  */
 uint16_t subghz_history_get_saved_count(SubGhzHistory* instance, uint16_t idx);
 
-/** Get saved dump hash for history[idx] (for use with index get_matches)
+/** Get saved dump hash for history[idx] (for use with index get_matches).
+ *  Note: hash 0 is a valid value. Use has_saved_hash() to check if set.
  *
  * @param instance  - SubGhzHistory instance
  * @param idx       - record index
- * @return hash     - saved dump hash (0 if not matched)
+ * @return hash     - saved dump hash
  */
 uint32_t subghz_history_get_saved_hash(SubGhzHistory* instance, uint16_t idx);
 

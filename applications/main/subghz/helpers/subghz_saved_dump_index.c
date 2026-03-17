@@ -83,9 +83,10 @@ void subghz_saved_dump_index_set_dirty(SubGhzSavedDumpIndex* index) {
 
 static bool subghz_saved_dump_index_dir_filter(const char* name, FileInfo* fileinfo, void* ctx) {
     UNUSED(ctx);
-    // Skip directories named "assets"
+    // DirWalk recurses into directories unconditionally (regardless of filter),
+    // so directory filtering is handled by path check in the build loop.
     if(fileinfo->flags & FSF_DIRECTORY) {
-        return (strcmp(name, "assets") != 0);
+        return false; // don't yield directories as results
     }
     // Only accept .sub files
     size_t len = strlen(name);

@@ -5,6 +5,31 @@
 
 #define TAG "SubGhzSceneReceiver"
 
+/** Format saved match info and store it in history.
+ *  Caps match_count to SUBGHZ_SAVED_DUMP_MAX_SELECTABLE and formats
+ *  display name with "(+N)" suffix for multiple matches.
+ */
+static void subghz_scene_receiver_apply_saved_match(
+    SubGhzHistory* history,
+    uint16_t idx,
+    uint16_t match_count,
+    FuriString* name,
+    FuriString* path) {
+    uint16_t capped = (match_count > SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) ?
+                          SUBGHZ_SAVED_DUMP_MAX_SELECTABLE :
+                          match_count;
+    FuriString* display = furi_string_alloc();
+    if(capped > 1) {
+        furi_string_printf(
+            display, "%s (+%u)", furi_string_get_cstr(name), capped - 1);
+    } else {
+        furi_string_set(display, name);
+    }
+    subghz_history_set_saved_info(
+        history, idx, furi_string_get_cstr(display), furi_string_get_cstr(path), capped);
+    furi_string_free(display);
+}
+
 const NotificationSequence subghz_sequence_rx = {
     &message_green_255,
 
@@ -160,28 +185,8 @@ static void subghz_scene_add_to_history_callback(
                             subghz_history_set_saved_hash(history, idx, hash);
 
                             if(match_count > 0) {
-                                // Cap to selectable limit for display
-                                uint16_t display_count = match_count;
-                                if(display_count > SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) {
-                                    display_count = SUBGHZ_SAVED_DUMP_MAX_SELECTABLE;
-                                }
-                                FuriString* display_name = furi_string_alloc();
-                                if(display_count > 1) {
-                                    furi_string_printf(
-                                        display_name,
-                                        "%s (+%u)",
-                                        furi_string_get_cstr(saved_name),
-                                        display_count - 1);
-                                } else {
-                                    furi_string_set(display_name, saved_name);
-                                }
-                                subghz_history_set_saved_info(
-                                    history,
-                                    idx,
-                                    furi_string_get_cstr(display_name),
-                                    furi_string_get_cstr(saved_path),
-                                    display_count);
-                                furi_string_free(display_name);
+                                subghz_scene_receiver_apply_saved_match(
+                                    history, idx, match_count, saved_name, saved_path);
                             }
 
                             furi_string_free(saved_name);
@@ -255,30 +260,8 @@ void subghz_scene_receiver_on_enter(void* context) {
             uint16_t mc = subghz_saved_dump_index_lookup(
                 subghz->saved_dump_index, h, re_name, re_path);
             if(mc > 0) {
-                FuriString* disp = furi_string_alloc();
-                if(mc > 1 && mc <= SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) {
-                    furi_string_printf(
-                        disp, "%s (+%u)", furi_string_get_cstr(re_name), mc - 1);
-                } else if(mc > SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) {
-                    furi_string_printf(
-                        disp,
-                        "%s (+%u)",
-                        furi_string_get_cstr(re_name),
-                        SUBGHZ_SAVED_DUMP_MAX_SELECTABLE - 1);
-                } else {
-                    furi_string_set(disp, re_name);
-                }
-                uint16_t capped_mc =
-                    (mc > SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) ?
-                        SUBGHZ_SAVED_DUMP_MAX_SELECTABLE :
-                        mc;
-                subghz_history_set_saved_info(
-                    history,
-                    i,
-                    furi_string_get_cstr(disp),
-                    furi_string_get_cstr(re_path),
-                    capped_mc);
-                furi_string_free(disp);
+                subghz_scene_receiver_apply_saved_match(
+                    history, i, mc, re_name, re_path);
             }
         }
         furi_string_free(re_name);
