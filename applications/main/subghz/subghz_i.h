@@ -39,6 +39,7 @@
 #include "helpers/subghz_threshold_rssi.h"
 
 #include "helpers/subghz_txrx.h"
+#include "helpers/subghz_saved_dump_index.h"
 
 #define SUBGHZ_MAX_LEN_NAME      64
 #define SUBGHZ_EXT_PRESET_NAME   true
@@ -95,6 +96,8 @@ struct SubGhz {
     SubGhzLoadTypeFile load_type_file;
     uint8_t tx_power;
     void* rpc_ctx;
+
+    SubGhzSavedDumpIndex* saved_dump_index;
 };
 
 void subghz_blink_start(SubGhz* subghz);

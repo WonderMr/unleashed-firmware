@@ -128,3 +128,59 @@ bool subghz_history_add_to_history(
  * @return SubGhzProtocolCommonLoad*
  */
 FlipperFormat* subghz_history_get_raw_data(SubGhzHistory* instance, uint16_t idx);
+
+/** Set saved dump info for history item
+ *
+ * @param instance  - SubGhzHistory instance
+ * @param idx       - record index
+ * @param name      - saved filename (display name)
+ * @param path      - full path to saved .sub file
+ * @param count     - number of matching saved files
+ */
+void subghz_history_set_saved_info(
+    SubGhzHistory* instance,
+    uint16_t idx,
+    const char* name,
+    const char* path,
+    uint16_t count);
+
+/** Get saved dump file path for history[idx]
+ *
+ * @param instance  - SubGhzHistory instance
+ * @param idx       - record index
+ * @return path     - const char* path or NULL if not matched
+ */
+const char* subghz_history_get_saved_path(SubGhzHistory* instance, uint16_t idx);
+
+/** Get saved dump match count for history[idx]
+ *
+ * @param instance  - SubGhzHistory instance
+ * @param idx       - record index
+ * @return count    - number of saved matches (0 = not matched)
+ */
+uint16_t subghz_history_get_saved_count(SubGhzHistory* instance, uint16_t idx);
+
+/** Get saved dump hash for history[idx] (for use with index get_matches).
+ *  Note: hash 0 is a valid value. Use has_saved_hash() to check if set.
+ *
+ * @param instance  - SubGhzHistory instance
+ * @param idx       - record index
+ * @return hash     - saved dump hash
+ */
+uint32_t subghz_history_get_saved_hash(SubGhzHistory* instance, uint16_t idx);
+
+/** Set saved dump hash for history[idx]
+ *
+ * @param instance  - SubGhzHistory instance
+ * @param idx       - record index
+ * @param hash      - hash value
+ */
+void subghz_history_set_saved_hash(SubGhzHistory* instance, uint16_t idx, uint32_t hash);
+
+/** Check if history[idx] has a computed saved hash (valid even if hash == 0) */
+bool subghz_history_has_saved_hash(SubGhzHistory* instance, uint16_t idx);
+
+/** Clear saved match metadata from all history items.
+ *  Called when the saved dump index is rebuilt so stale data doesn't persist.
+ */
+void subghz_history_clear_all_saved_info(SubGhzHistory* instance);

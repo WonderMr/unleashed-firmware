@@ -1,8 +1,34 @@
 #include "../subghz_i.h"
 #include <dolphin/dolphin.h>
 #include <lib/subghz/protocols/bin_raw.h>
+#include "../helpers/subghz_saved_dump_index.h"
 
 #define TAG "SubGhzSceneReceiver"
+
+/** Format saved match info and store it in history.
+ *  Caps match_count to SUBGHZ_SAVED_DUMP_MAX_SELECTABLE and formats
+ *  display name with "(+N)" suffix for multiple matches.
+ */
+static void subghz_scene_receiver_apply_saved_match(
+    SubGhzHistory* history,
+    uint16_t idx,
+    uint16_t match_count,
+    FuriString* name,
+    FuriString* path) {
+    uint16_t capped = (match_count > SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) ?
+                          SUBGHZ_SAVED_DUMP_MAX_SELECTABLE :
+                          match_count;
+    FuriString* display = furi_string_alloc();
+    if(capped > 1) {
+        furi_string_printf(
+            display, "%s (+%u)", furi_string_get_cstr(name), (unsigned int)(capped - 1));
+    } else {
+        furi_string_set(display, name);
+    }
+    subghz_history_set_saved_info(
+        history, idx, furi_string_get_cstr(display), furi_string_get_cstr(path), capped);
+    furi_string_free(display);
+}
 
 const NotificationSequence subghz_sequence_rx = {
     &message_green_255,
@@ -134,6 +160,43 @@ static void subghz_scene_add_to_history_callback(
 
             subghz->state_notifications = SubGhzNotificationStateRxDone;
 
+            // Lookup in saved dump index
+            FlipperFormat* fff = subghz_history_get_raw_data(history, idx);
+            if(fff && subghz->saved_dump_index) {
+                FuriString* protocol_str = furi_string_alloc();
+                flipper_format_rewind(fff);
+                if(flipper_format_read_string(fff, "Protocol", protocol_str)) {
+                    uint32_t bit32 = 0;
+                    if(flipper_format_read_uint32(fff, "Bit", &bit32, 1)) {
+                        uint8_t key_data[sizeof(uint64_t)] = {0};
+                        if(flipper_format_read_hex(fff, "Key", key_data, sizeof(uint64_t))) {
+                            uint32_t hash = subghz_saved_dump_index_compute_hash(
+                                furi_string_get_cstr(protocol_str),
+                                (uint16_t)bit32,
+                                key_data,
+                                sizeof(uint64_t));
+
+                            FuriString* saved_name = furi_string_alloc();
+                            FuriString* saved_path = furi_string_alloc();
+                            uint16_t match_count = subghz_saved_dump_index_lookup(
+                                subghz->saved_dump_index, hash, saved_name, saved_path);
+
+                            // Always store hash so re-lookup works after index rebuild
+                            subghz_history_set_saved_hash(history, idx, hash);
+
+                            if(match_count > 0) {
+                                subghz_scene_receiver_apply_saved_match(
+                                    history, idx, match_count, saved_name, saved_path);
+                            }
+
+                            furi_string_free(saved_name);
+                            furi_string_free(saved_path);
+                        }
+                    }
+                }
+                furi_string_free(protocol_str);
+            }
+
             subghz_history_get_text_item_menu(history, item_name, idx);
             subghz_history_get_time_item_menu(history, item_time, idx);
             subghz_view_receiver_add_item_to_menu(
@@ -178,6 +241,31 @@ void subghz_scene_receiver_on_enter(void* context) {
         subghz_history_reset(history);
         subghz_rx_key_state_set(subghz, SubGhzRxKeyStateStart);
         subghz->idx_menu_chosen = 0;
+    }
+
+    // Build or rebuild saved dump index (also handles dirty index after save/delete).
+    // If a rebuild occurred, clear stale display metadata and re-lookup all existing
+    // history items against the fresh index using their preserved hashes.
+    if(subghz_saved_dump_index_build(subghz->saved_dump_index)) {
+        subghz_history_clear_all_saved_info(history);
+
+        FuriString* re_name = furi_string_alloc();
+        FuriString* re_path = furi_string_alloc();
+        for(uint16_t i = 0; i < subghz_history_get_item(history); i++) {
+            if(!subghz_history_has_saved_hash(history, i)) continue;
+            uint32_t h = subghz_history_get_saved_hash(history, i);
+
+            furi_string_reset(re_name);
+            furi_string_reset(re_path);
+            uint16_t mc = subghz_saved_dump_index_lookup(
+                subghz->saved_dump_index, h, re_name, re_path);
+            if(mc > 0) {
+                subghz_scene_receiver_apply_saved_match(
+                    history, i, mc, re_name, re_path);
+            }
+        }
+        furi_string_free(re_name);
+        furi_string_free(re_path);
     }
 
     subghz_view_receiver_set_mode(subghz->subghz_receiver, SubGhzViewReceiverModeLive);
@@ -254,12 +342,51 @@ bool subghz_scene_receiver_on_event(void* context, SceneManagerEvent event) {
             }
             consumed = true;
             break;
-        case SubGhzCustomEventViewReceiverOK:
-            // Show file info, scene: receiver_info
-            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneReceiverInfo);
+        case SubGhzCustomEventViewReceiverOK: {
+            uint16_t saved_count =
+                subghz_history_get_saved_count(subghz->history, subghz->idx_menu_chosen);
+            if(saved_count == 1) {
+                // Single match: try to load saved file directly
+                const char* saved_path =
+                    subghz_history_get_saved_path(subghz->history, subghz->idx_menu_chosen);
+                if(saved_path) {
+                    furi_string_set(subghz->file_path, saved_path);
+                    if(subghz_key_load(subghz, saved_path, true)) {
+                        // Load succeeded — stop RX and navigate to saved menu
+                        subghz->state_notifications = SubGhzNotificationStateIDLE;
+                        subghz_txrx_hopper_set_state(subghz->txrx, SubGhzHopperStateOFF);
+                        subghz_txrx_stop(subghz->txrx);
+                        subghz_txrx_set_rx_callback(subghz->txrx, NULL, subghz);
+                        subghz_rx_key_state_set(subghz, SubGhzRxKeyStateRAWLoad);
+                        scene_manager_next_scene(
+                            subghz->scene_manager, SubGhzSceneSavedMenu);
+                    } else {
+                        // Load failed — keep RX running, fall back to receiver info
+                        scene_manager_next_scene(
+                            subghz->scene_manager, SubGhzSceneReceiverInfo);
+                    }
+                } else {
+                    // Path missing, fall back to receiver info
+                    scene_manager_next_scene(
+                        subghz->scene_manager, SubGhzSceneReceiverInfo);
+                }
+            } else if(saved_count > 1) {
+                // Multiple matches: show selection submenu
+                subghz->state_notifications = SubGhzNotificationStateIDLE;
+                subghz_txrx_hopper_set_state(subghz->txrx, SubGhzHopperStateOFF);
+                subghz_txrx_stop(subghz->txrx);
+                subghz_txrx_set_rx_callback(subghz->txrx, NULL, subghz);
+
+                scene_manager_next_scene(
+                    subghz->scene_manager, SubGhzSceneSavedDumpSelect);
+            } else {
+                // No match: standard behavior
+                scene_manager_next_scene(subghz->scene_manager, SubGhzSceneReceiverInfo);
+            }
             dolphin_deed(DolphinDeedSubGhzReceiverInfo);
             consumed = true;
             break;
+        }
         case SubGhzCustomEventViewReceiverDeleteItem:
             subghz->state_notifications = SubGhzNotificationStateRx;
 

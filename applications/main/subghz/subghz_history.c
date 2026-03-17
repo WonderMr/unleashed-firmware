@@ -13,6 +13,11 @@ typedef struct {
     uint8_t type;
     SubGhzRadioPreset* preset;
     DateTime datetime;
+    FuriString* saved_name; // display name if matched, NULL otherwise
+    FuriString* saved_path; // full path to .sub file if matched, NULL otherwise
+    uint16_t saved_count; // number of matching saved files (0 = not matched)
+    uint32_t saved_hash; // hash used for matching
+    bool has_saved_hash; // true if saved_hash was computed for this item
 } SubGhzHistoryItem;
 
 ARRAY_DEF(SubGhzHistoryItemArray, SubGhzHistoryItem, M_POD_OPLIST) //-V658
@@ -48,6 +53,8 @@ void subghz_history_free(SubGhzHistory* instance) {
             furi_string_free(item->preset->name);
             free(item->preset);
             flipper_format_free(item->flipper_string);
+            if(item->saved_name) furi_string_free(item->saved_name);
+            if(item->saved_path) furi_string_free(item->saved_path);
             item->type = 0;
         }
     SubGhzHistoryItemArray_clear(instance->history->data);
@@ -82,6 +89,8 @@ void subghz_history_reset(SubGhzHistory* instance) {
             furi_string_free(item->preset->name);
             free(item->preset);
             flipper_format_free(item->flipper_string);
+            if(item->saved_name) furi_string_free(item->saved_name);
+            if(item->saved_path) furi_string_free(item->saved_path);
             item->type = 0;
         }
     SubGhzHistoryItemArray_reset(instance->history->data);
@@ -98,6 +107,8 @@ void subghz_history_delete_item(SubGhzHistory* instance, uint16_t idx) {
         furi_string_free(item->preset->name);
         free(item->preset);
         flipper_format_free(item->flipper_string);
+        if(item->saved_name) furi_string_free(item->saved_name);
+        if(item->saved_path) furi_string_free(item->saved_path);
         item->type = 0;
         SubGhzHistoryItemArray_remove_v(instance->history->data, idx, idx + 1);
         instance->last_index_write--;
@@ -170,7 +181,11 @@ uint16_t subghz_history_get_last_index(SubGhzHistory* instance) {
 }
 void subghz_history_get_text_item_menu(SubGhzHistory* instance, FuriString* output, uint16_t idx) {
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    furi_string_set(output, item->item_str);
+    if(item->saved_name && furi_string_size(item->saved_name) > 0) {
+        furi_string_set(output, item->saved_name);
+    } else {
+        furi_string_set(output, item->item_str);
+    }
 }
 
 void subghz_history_get_time_item_menu(SubGhzHistory* instance, FuriString* output, uint16_t idx) {
@@ -212,6 +227,11 @@ bool subghz_history_add_to_history(
     furi_hal_rtc_get_datetime(&item->datetime);
 
     item->item_str = furi_string_alloc();
+    item->saved_name = NULL;
+    item->saved_path = NULL;
+    item->saved_count = 0;
+    item->saved_hash = 0;
+    item->has_saved_hash = false;
     item->flipper_string = flipper_format_string_alloc();
     subghz_protocol_decoder_base_serialize(decoder_base, item->flipper_string, preset);
 
@@ -275,4 +295,80 @@ bool subghz_history_add_to_history(
     furi_string_free(text);
     instance->last_index_write++;
     return true;
+}
+
+void subghz_history_set_saved_info(
+    SubGhzHistory* instance,
+    uint16_t idx,
+    const char* name,
+    const char* path,
+    uint16_t count) {
+    furi_assert(instance);
+    SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+    if(!item) return;
+
+    if(item->saved_name) {
+        furi_string_set(item->saved_name, name);
+    } else {
+        item->saved_name = furi_string_alloc_set(name);
+    }
+    if(item->saved_path) {
+        furi_string_set(item->saved_path, path);
+    } else {
+        item->saved_path = furi_string_alloc_set(path);
+    }
+    item->saved_count = count;
+}
+
+const char* subghz_history_get_saved_path(SubGhzHistory* instance, uint16_t idx) {
+    furi_assert(instance);
+    SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+    if(!item || !item->saved_path) return NULL;
+    return furi_string_get_cstr(item->saved_path);
+}
+
+uint16_t subghz_history_get_saved_count(SubGhzHistory* instance, uint16_t idx) {
+    furi_assert(instance);
+    SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+    if(!item) return 0;
+    return item->saved_count;
+}
+
+uint32_t subghz_history_get_saved_hash(SubGhzHistory* instance, uint16_t idx) {
+    furi_assert(instance);
+    SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+    if(!item) return 0;
+    return item->saved_hash;
+}
+
+void subghz_history_set_saved_hash(SubGhzHistory* instance, uint16_t idx, uint32_t hash) {
+    furi_assert(instance);
+    SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+    if(item) {
+        item->saved_hash = hash;
+        item->has_saved_hash = true;
+    }
+}
+
+bool subghz_history_has_saved_hash(SubGhzHistory* instance, uint16_t idx) {
+    furi_assert(instance);
+    SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+    if(!item) return false;
+    return item->has_saved_hash;
+}
+
+void subghz_history_clear_all_saved_info(SubGhzHistory* instance) {
+    furi_assert(instance);
+    for
+        M_EACH(item, instance->history->data, SubGhzHistoryItemArray_t) {
+            if(item->saved_name) {
+                furi_string_reset(item->saved_name);
+            }
+            if(item->saved_path) {
+                furi_string_reset(item->saved_path);
+            }
+            item->saved_count = 0;
+            // Keep saved_hash intact so items can be re-looked-up
+            // against the rebuilt index without re-parsing raw data
+        }
 }
