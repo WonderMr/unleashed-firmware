@@ -237,10 +237,42 @@ void subghz_scene_receiver_on_enter(void* context) {
     }
 
     // Build or rebuild saved dump index (also handles dirty index after save/delete).
-    // If a rebuild occurred, clear stale saved-match metadata from history items
-    // so they get fresh lookups from the menu display and OK handler.
+    // If a rebuild occurred, clear stale display metadata and re-lookup all existing
+    // history items against the fresh index using their preserved hashes.
     if(subghz_saved_dump_index_build(subghz->saved_dump_index)) {
         subghz_history_clear_all_saved_info(history);
+
+        FuriString* re_name = furi_string_alloc();
+        FuriString* re_path = furi_string_alloc();
+        for(uint16_t i = 0; i < subghz_history_get_item(history); i++) {
+            uint32_t h = subghz_history_get_saved_hash(history, i);
+            if(h == 0) continue;
+
+            furi_string_reset(re_name);
+            furi_string_reset(re_path);
+            uint16_t mc = subghz_saved_dump_index_lookup(
+                subghz->saved_dump_index, h, re_name, re_path);
+            if(mc > 0) {
+                FuriString* disp = furi_string_alloc();
+                if(mc > 1 && mc <= SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) {
+                    furi_string_printf(
+                        disp, "%s (+%u)", furi_string_get_cstr(re_name), mc - 1);
+                } else if(mc > SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) {
+                    furi_string_printf(
+                        disp,
+                        "%s (+%u)",
+                        furi_string_get_cstr(re_name),
+                        SUBGHZ_SAVED_DUMP_MAX_SELECTABLE - 1);
+                } else {
+                    furi_string_set(disp, re_name);
+                }
+                subghz_history_set_saved_info(
+                    history, i, furi_string_get_cstr(disp), furi_string_get_cstr(re_path), mc);
+                furi_string_free(disp);
+            }
+        }
+        furi_string_free(re_name);
+        furi_string_free(re_path);
     }
 
     subghz_view_receiver_set_mode(subghz->subghz_receiver, SubGhzViewReceiverModeLive);

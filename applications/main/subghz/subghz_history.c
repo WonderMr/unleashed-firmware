@@ -356,6 +356,7 @@ void subghz_history_clear_all_saved_info(SubGhzHistory* instance) {
                 furi_string_reset(item->saved_path);
             }
             item->saved_count = 0;
-            item->saved_hash = 0;
+            // Keep saved_hash intact so items can be re-looked-up
+            // against the rebuilt index without re-parsing raw data
         }
 }
