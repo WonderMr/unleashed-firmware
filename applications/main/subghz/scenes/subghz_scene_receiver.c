@@ -317,22 +317,22 @@ bool subghz_scene_receiver_on_event(void* context, SceneManagerEvent event) {
             uint16_t saved_count =
                 subghz_history_get_saved_count(subghz->history, subghz->idx_menu_chosen);
             if(saved_count == 1) {
-                // Single match: load saved file directly
+                // Single match: try to load saved file directly
                 const char* saved_path =
                     subghz_history_get_saved_path(subghz->history, subghz->idx_menu_chosen);
                 if(saved_path) {
-                    subghz->state_notifications = SubGhzNotificationStateIDLE;
-                    subghz_txrx_hopper_set_state(subghz->txrx, SubGhzHopperStateOFF);
-                    subghz_txrx_stop(subghz->txrx);
-                    subghz_txrx_set_rx_callback(subghz->txrx, NULL, subghz);
-
                     furi_string_set(subghz->file_path, saved_path);
                     if(subghz_key_load(subghz, saved_path, true)) {
+                        // Load succeeded — stop RX and navigate to saved menu
+                        subghz->state_notifications = SubGhzNotificationStateIDLE;
+                        subghz_txrx_hopper_set_state(subghz->txrx, SubGhzHopperStateOFF);
+                        subghz_txrx_stop(subghz->txrx);
+                        subghz_txrx_set_rx_callback(subghz->txrx, NULL, subghz);
                         subghz_rx_key_state_set(subghz, SubGhzRxKeyStateRAWLoad);
                         scene_manager_next_scene(
                             subghz->scene_manager, SubGhzSceneSavedMenu);
                     } else {
-                        // Load failed, fall back to receiver info
+                        // Load failed — keep RX running, fall back to receiver info
                         scene_manager_next_scene(
                             subghz->scene_manager, SubGhzSceneReceiverInfo);
                     }
