@@ -17,8 +17,9 @@ SubGhzSavedDumpIndex* subghz_saved_dump_index_alloc(void);
 void subghz_saved_dump_index_free(SubGhzSavedDumpIndex* index);
 
 /** Build index by scanning SD card for .sub files.
- * Returns true if a rebuild actually occurred (index was dirty/unbuilt),
- * false if the index was already up-to-date.
+ * Returns true if a successful rebuild occurred.
+ * Returns false if the index was already up-to-date OR if the scan failed
+ * (in which case the existing index is preserved).
  */
 bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index);
 

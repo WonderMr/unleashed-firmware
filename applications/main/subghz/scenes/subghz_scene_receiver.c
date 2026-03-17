@@ -21,7 +21,7 @@ static void subghz_scene_receiver_apply_saved_match(
     FuriString* display = furi_string_alloc();
     if(capped > 1) {
         furi_string_printf(
-            display, "%s (+%u)", furi_string_get_cstr(name), capped - 1);
+            display, "%s (+%u)", furi_string_get_cstr(name), (unsigned int)(capped - 1));
     } else {
         furi_string_set(display, name);
     }
