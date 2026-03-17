@@ -35,14 +35,63 @@ struct SubGhzFrequencyAnalyzerWorker {
     void* context;
 };
 
-static void subghz_frequency_analyzer_worker_load_registers(const uint8_t data[][2]) {
-    furi_hal_spi_acquire(&furi_hal_spi_bus_handle_subghz);
+/** Load registers with SPI already acquired */
+static void subghz_frequency_analyzer_worker_load_registers_spi(
+    const FuriHalSpiBusHandle* handle,
+    const uint8_t data[][2]) {
     size_t i = 0;
     while(data[i][0]) {
-        cc1101_write_reg(&furi_hal_spi_bus_handle_subghz, data[i][0], data[i][1]);
+        cc1101_write_reg(handle, data[i][0], data[i][1]);
         i++;
     }
-    furi_hal_spi_release(&furi_hal_spi_bus_handle_subghz);
+}
+
+/** Get RSSI value with SPI already acquired (inlined from furi_hal_subghz_get_rssi) */
+static float subghz_frequency_analyzer_worker_get_rssi(const FuriHalSpiBusHandle* handle) {
+    int32_t rssi_dec = cc1101_get_rssi(handle);
+    float rssi = rssi_dec;
+    if(rssi_dec >= 128) {
+        rssi = ((rssi - 256.0f) / 2.0f) - 74.0f;
+    } else {
+        rssi = (rssi / 2.0f) - 74.0f;
+    }
+    return rssi;
+}
+
+/** Set RF path based on frequency band, with SPI already acquired.
+ *  Only switches if the path actually changes. */
+static void subghz_frequency_analyzer_worker_set_path(
+    const FuriHalSpiBusHandle* handle,
+    uint32_t frequency,
+    FuriHalSubGhzPath* current_path) {
+    FuriHalSubGhzPath new_path;
+    if(frequency >= 281000000 && frequency <= 361000000) {
+        new_path = FuriHalSubGhzPath315;
+    } else if(frequency >= 378000000 && frequency <= 481000000) {
+        new_path = FuriHalSubGhzPath433;
+    } else if(frequency >= 749000000 && frequency <= 962000000) {
+        new_path = FuriHalSubGhzPath868;
+    } else {
+        new_path = FuriHalSubGhzPathIsolate;
+    }
+
+    if(new_path == *current_path) return;
+    *current_path = new_path;
+
+    // Inline path switching (from furi_hal_subghz_set_path) without SPI acquire/release
+    if(new_path == FuriHalSubGhzPath433) {
+        furi_hal_gpio_write(&gpio_rf_sw_0, 0);
+        cc1101_write_reg(handle, CC1101_IOCFG2, CC1101IocfgHW | CC1101_IOCFG_INV);
+    } else if(new_path == FuriHalSubGhzPath315) {
+        furi_hal_gpio_write(&gpio_rf_sw_0, 1);
+        cc1101_write_reg(handle, CC1101_IOCFG2, CC1101IocfgHW);
+    } else if(new_path == FuriHalSubGhzPath868) {
+        furi_hal_gpio_write(&gpio_rf_sw_0, 1);
+        cc1101_write_reg(handle, CC1101_IOCFG2, CC1101IocfgHW | CC1101_IOCFG_INV);
+    } else {
+        furi_hal_gpio_write(&gpio_rf_sw_0, 0);
+        cc1101_write_reg(handle, CC1101_IOCFG2, CC1101IocfgHW);
+    }
 }
 
 // running average with adaptive coefficient
@@ -97,10 +146,14 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
         &furi_hal_spi_bus_handle_subghz,
         CC1101_AGCCTRL0,
         0b00110000); // 00 - No hysteresis, medium asymmetric dead zone, medium gain ; 11 - 64 samples agc; 00 - Normal AGC, 00 - 4dB boundary
-
+    cc1101_write_reg(
+        &furi_hal_spi_bus_handle_subghz,
+        CC1101_MCSM0,
+        0b00011000); // FS_AUTOCAL=01: auto-calibrate on IDLE->RX/TX; PO_TIMEOUT=10: 149-155us
     furi_hal_spi_release(&furi_hal_spi_bus_handle_subghz);
 
-    furi_hal_subghz_set_path(FuriHalSubGhzPathIsolate);
+    const FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_subghz;
+    FuriHalSubGhzPath current_path = FuriHalSubGhzPathIsolate;
 
     while(instance->worker_running) {
         furi_delay_ms(10);
@@ -111,33 +164,35 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
 
         frequency_rssi.rssi_coarse = -127.0f;
         frequency_rssi.rssi_fine = -127.0f;
-        furi_hal_subghz_idle();
-        subghz_frequency_analyzer_worker_load_registers(subghz_preset_ook_650khz);
+
+        // Acquire SPI for entire coarse scan
+        furi_hal_spi_acquire(spi);
+        cc1101_switch_to_idle(spi);
+        subghz_frequency_analyzer_worker_load_registers_spi(spi, subghz_preset_ook_650khz);
 
         // First stage: coarse scan
         for(size_t i = 0; i < subghz_setting_get_frequency_count(instance->setting); i++) {
+            if(!instance->worker_running) break;
+
             uint32_t current_frequency = subghz_setting_get_frequency(instance->setting, i);
             if(furi_hal_subghz_is_frequency_valid(current_frequency) &&
                (((current_frequency != 462750000) && (current_frequency != 467750000) &&
                  (current_frequency != 464000000)) &&
                 (current_frequency <= 920000000))) {
-                furi_hal_spi_acquire(&furi_hal_spi_bus_handle_subghz);
-                cc1101_switch_to_idle(&furi_hal_spi_bus_handle_subghz);
-                frequency = cc1101_set_frequency(
-                    &furi_hal_spi_bus_handle_subghz,
-                    subghz_setting_get_frequency(instance->setting, i));
+                // Switch RF path if band changed
+                subghz_frequency_analyzer_worker_set_path(
+                    spi, current_frequency, &current_path);
 
-                cc1101_calibrate(&furi_hal_spi_bus_handle_subghz);
+                cc1101_switch_to_idle(spi);
+                frequency = cc1101_set_frequency(spi, current_frequency);
+                // Auto-calibration on IDLE->RX (MCSM0=0x18), no manual calibrate needed
+                cc1101_switch_to_rx(spi);
+                furi_hal_spi_release(spi);
 
-                furi_check(cc1101_wait_status_state(
-                    &furi_hal_spi_bus_handle_subghz, CC1101StateIDLE, 10000));
+                furi_delay_us(800); // RSSI settling for 650kHz BW
 
-                cc1101_switch_to_rx(&furi_hal_spi_bus_handle_subghz);
-                furi_hal_spi_release(&furi_hal_spi_bus_handle_subghz);
-
-                furi_delay_ms(2);
-
-                rssi = furi_hal_subghz_get_rssi();
+                furi_hal_spi_acquire(spi);
+                rssi = subghz_frequency_analyzer_worker_get_rssi(spi);
 
                 rssi_avg += rssi;
                 rssi_avg_samples++;
@@ -150,6 +205,9 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
                 }
             }
         }
+        furi_hal_spi_release(spi);
+
+        if(!instance->worker_running) break;
 
         FURI_LOG_T(
             TAG,
@@ -161,28 +219,32 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
 
         // Second stage: fine scan
         if(frequency_rssi.rssi_coarse > instance->trigger_level) {
-            furi_hal_subghz_idle();
-            subghz_frequency_analyzer_worker_load_registers(subghz_preset_ook_58khz);
+            // Acquire SPI for entire fine scan
+            furi_hal_spi_acquire(spi);
+            cc1101_switch_to_idle(spi);
+            subghz_frequency_analyzer_worker_load_registers_spi(spi, subghz_preset_ook_58khz);
+
+            // Set correct RF path for the coarse frequency band
+            subghz_frequency_analyzer_worker_set_path(
+                spi, frequency_rssi.frequency_coarse, &current_path);
+
             //for example -0.3 ... 433.92 ... +0.3 step 20KHz
             for(uint32_t i = frequency_rssi.frequency_coarse - 300000;
                 i < frequency_rssi.frequency_coarse + 300000;
                 i += 20000) {
+                if(!instance->worker_running) break;
+
                 if(furi_hal_subghz_is_frequency_valid(i)) {
-                    furi_hal_spi_acquire(&furi_hal_spi_bus_handle_subghz);
-                    cc1101_switch_to_idle(&furi_hal_spi_bus_handle_subghz);
-                    frequency = cc1101_set_frequency(&furi_hal_spi_bus_handle_subghz, i);
+                    cc1101_switch_to_idle(spi);
+                    frequency = cc1101_set_frequency(spi, i);
+                    // Auto-calibration on IDLE->RX (MCSM0=0x18)
+                    cc1101_switch_to_rx(spi);
+                    furi_hal_spi_release(spi);
 
-                    cc1101_calibrate(&furi_hal_spi_bus_handle_subghz);
+                    furi_delay_ms(2); // Fine scan needs longer settling (58kHz BW)
 
-                    furi_check(cc1101_wait_status_state(
-                        &furi_hal_spi_bus_handle_subghz, CC1101StateIDLE, 10000));
-
-                    cc1101_switch_to_rx(&furi_hal_spi_bus_handle_subghz);
-                    furi_hal_spi_release(&furi_hal_spi_bus_handle_subghz);
-
-                    furi_delay_ms(2);
-
-                    rssi = furi_hal_subghz_get_rssi();
+                    furi_hal_spi_acquire(spi);
+                    rssi = subghz_frequency_analyzer_worker_get_rssi(spi);
 
                     FURI_LOG_T(TAG, "#:%lu:%f", frequency, (double)rssi);
 
@@ -192,6 +254,7 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
                     }
                 }
             }
+            furi_hal_spi_release(spi);
         }
 
         // Deliver results fine
@@ -326,6 +389,12 @@ void subghz_frequency_analyzer_worker_set_trigger_level(
 
 float subghz_frequency_analyzer_worker_get_trigger_level(SubGhzFrequencyAnalyzerWorker* instance) {
     return instance->trigger_level;
+}
+
+SubGhzSetting* subghz_frequency_analyzer_worker_get_setting(
+    SubGhzFrequencyAnalyzerWorker* instance) {
+    furi_assert(instance);
+    return instance->setting;
 }
 
 uint32_t subghz_frequency_analyzer_get_nearest_frequency(

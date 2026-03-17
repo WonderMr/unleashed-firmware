@@ -478,6 +478,136 @@ uint32_t subghz_setting_get_default_frequency(SubGhzSetting* instance) {
         instance, subghz_setting_get_frequency_default_index(instance));
 }
 
+bool subghz_setting_add_hopper_frequency(SubGhzSetting* instance, uint32_t frequency) {
+    furi_check(instance);
+
+    if(!furi_hal_subghz_is_frequency_valid(frequency)) {
+        return false;
+    }
+
+    // Check if already in hopper list
+    for(size_t i = 0; i < FrequencyList_size(instance->hopper_frequencies); i++) {
+        if(*FrequencyList_get(instance->hopper_frequencies, i) == frequency) {
+            return false;
+        }
+    }
+
+    // Add to hopper list
+    FrequencyList_push_back(instance->hopper_frequencies, frequency);
+
+    // Also add to main frequency list if absent (for nearest-frequency matching)
+    bool found_in_main = false;
+    for(size_t i = 0; i < FrequencyList_size(instance->frequencies); i++) {
+        if((*FrequencyList_get(instance->frequencies, i) & FREQUENCY_MASK) == frequency) {
+            found_in_main = true;
+            break;
+        }
+    }
+    if(!found_in_main) {
+        FrequencyList_push_back(instance->frequencies, frequency);
+    }
+
+    FURI_LOG_I(TAG, "Added hopper frequency %lu", frequency);
+    return true;
+}
+
+void subghz_setting_save_user_hopper(SubGhzSetting* instance, const char* file_path) {
+    furi_check(instance);
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+
+    // First, read existing file to preserve non-hopper settings
+    FlipperFormat* fff_read = flipper_format_file_alloc(storage);
+    FuriString* temp_str = furi_string_alloc();
+
+    bool add_standard = true;
+    uint32_t default_frequency = 0;
+    bool has_default_frequency = false;
+
+    // Collect existing custom Frequency entries
+    FrequencyList_t saved_frequencies;
+    FrequencyList_init(saved_frequencies);
+
+    if(flipper_format_file_open_existing(fff_read, file_path)) {
+        uint32_t temp_data32;
+        if(flipper_format_read_header(fff_read, temp_str, &temp_data32)) {
+            if(!strcmp(furi_string_get_cstr(temp_str), SUBGHZ_SETTING_FILE_TYPE) &&
+               temp_data32 == SUBGHZ_SETTING_FILE_VERSION) {
+                // Read Add_standard_frequencies
+                flipper_format_read_bool(fff_read, "Add_standard_frequencies", &add_standard, 1);
+
+                // Read custom Frequency entries
+                if(flipper_format_rewind(fff_read)) {
+                    while(flipper_format_read_uint32(fff_read, "Frequency", &temp_data32, 1)) {
+                        FrequencyList_push_back(saved_frequencies, temp_data32);
+                    }
+                }
+
+                // Read Default_frequency
+                if(flipper_format_rewind(fff_read)) {
+                    if(flipper_format_read_uint32(
+                           fff_read, "Default_frequency", &temp_data32, 1)) {
+                        default_frequency = temp_data32;
+                        has_default_frequency = true;
+                    }
+                }
+            }
+        }
+    }
+    flipper_format_free(fff_read);
+
+    // Now write the new file preserving existing settings
+    FlipperFormat* fff_write = flipper_format_file_alloc(storage);
+
+    do {
+        if(!flipper_format_file_open_always(fff_write, file_path)) {
+            FURI_LOG_E(TAG, "Unable to open file for writing: %s", file_path);
+            break;
+        }
+
+        if(!flipper_format_write_header_cstr(
+               fff_write, SUBGHZ_SETTING_FILE_TYPE, SUBGHZ_SETTING_FILE_VERSION)) {
+            FURI_LOG_E(TAG, "Unable to write header");
+            break;
+        }
+
+        if(!flipper_format_write_bool(fff_write, "Add_standard_frequencies", &add_standard, 1)) {
+            break;
+        }
+
+        // Preserve custom Frequency entries from existing file
+        for(size_t i = 0; i < FrequencyList_size(saved_frequencies); i++) {
+            uint32_t freq = *FrequencyList_get(saved_frequencies, i);
+            flipper_format_write_uint32(fff_write, "Frequency", &freq, 1);
+        }
+
+        // Write all hopper frequencies
+        for(size_t i = 0; i < FrequencyList_size(instance->hopper_frequencies); i++) {
+            uint32_t freq = *FrequencyList_get(instance->hopper_frequencies, i);
+            if(!flipper_format_write_uint32(fff_write, "Hopper_frequency", &freq, 1)) {
+                FURI_LOG_E(TAG, "Unable to write Hopper_frequency %lu", freq);
+                break;
+            }
+        }
+
+        // Preserve Default_frequency
+        if(has_default_frequency) {
+            flipper_format_write_uint32(fff_write, "Default_frequency", &default_frequency, 1);
+        }
+
+        FURI_LOG_I(
+            TAG,
+            "Saved %u hopper frequencies to %s",
+            FrequencyList_size(instance->hopper_frequencies),
+            file_path);
+    } while(false);
+
+    FrequencyList_clear(saved_frequencies);
+    furi_string_free(temp_str);
+    flipper_format_free(fff_write);
+    furi_record_close(RECORD_STORAGE);
+}
+
 uint8_t subghz_setting_customs_presets_to_log(SubGhzSetting* instance) {
     furi_assert(instance);
 #ifndef FURI_DEBUG

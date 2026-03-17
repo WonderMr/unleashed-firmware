@@ -88,4 +88,8 @@ void subghz_scene_frequency_analyzer_on_exit(void* context) {
     subghz->last_settings->frequency_analyzer_trigger =
         subghz_frequency_analyzer_get_trigger_level(subghz->subghz_frequency_analyzer);
     subghz_last_settings_save(subghz->last_settings);
+
+    // Save hopper frequencies (including newly discovered ones) to user settings file
+    SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
+    subghz_setting_save_user_hopper(setting, EXT_PATH("subghz/assets/setting_user"));
 }

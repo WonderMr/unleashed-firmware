@@ -81,3 +81,11 @@ float subghz_frequency_analyzer_worker_get_trigger_level(SubGhzFrequencyAnalyzer
 uint32_t subghz_frequency_analyzer_get_nearest_frequency(
     SubGhzFrequencyAnalyzerWorker* instance,
     uint32_t input);
+
+/** Get SubGhzSetting instance from worker
+ *
+ * @param instance SubGhzFrequencyAnalyzerWorker instance
+ * @return SubGhzSetting*
+ */
+SubGhzSetting* subghz_frequency_analyzer_worker_get_setting(
+    SubGhzFrequencyAnalyzerWorker* instance);

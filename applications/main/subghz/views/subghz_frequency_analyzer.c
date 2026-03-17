@@ -349,6 +349,7 @@ void subghz_frequency_analyzer_pair_callback(
         //update history
         instance->show_frame = true;
         uint8_t max_index = instance->max_index;
+        uint32_t detected_frequency = 0;
         with_view_model(
             instance->view,
             SubGhzFrequencyAnalyzerModel * model,
@@ -356,6 +357,7 @@ void subghz_frequency_analyzer_pair_callback(
                 bool in_array = false;
                 uint32_t normal_frequency = subghz_frequency_analyzer_get_nearest_frequency(
                     instance->worker, model->frequency);
+                detected_frequency = normal_frequency;
                 for(size_t i = 0; i < MAX_HISTORY; i++) {
                     if(model->history_frequency[i] == normal_frequency) {
                         in_array = true;
@@ -407,6 +409,16 @@ void subghz_frequency_analyzer_pair_callback(
             },
             false);
         instance->max_index = max_index;
+
+        // Add detected frequency to hopper dictionary and save immediately
+        if(detected_frequency > 0) {
+            SubGhzSetting* setting =
+                subghz_frequency_analyzer_worker_get_setting(instance->worker);
+            if(subghz_setting_add_hopper_frequency(setting, detected_frequency)) {
+                subghz_setting_save_user_hopper(
+                    setting, EXT_PATH("subghz/assets/setting_user"));
+            }
+        }
     } else if(!float_is_equal(rssi, 0.f) && !instance->locked) {
         // There is some signal
         FURI_LOG_I(TAG, "rssi = %.2f, frequency = %ld Hz", (double)rssi, frequency);

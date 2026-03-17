@@ -55,6 +55,22 @@ void subghz_setting_set_default_frequency(SubGhzSetting* instance, uint32_t freq
 
 uint8_t subghz_setting_customs_presets_to_log(SubGhzSetting* instance);
 
+/** Add a frequency to the hopper list (if not already present).
+ *  Also adds to the main frequency list if absent.
+ *
+ * @param instance SubGhzSetting instance
+ * @param frequency frequency in Hz
+ * @return true if added, false if already present or invalid
+ */
+bool subghz_setting_add_hopper_frequency(SubGhzSetting* instance, uint32_t frequency);
+
+/** Save hopper frequencies to a user settings file.
+ *
+ * @param instance SubGhzSetting instance
+ * @param file_path path to the settings file
+ */
+void subghz_setting_save_user_hopper(SubGhzSetting* instance, const char* file_path);
+
 #ifdef __cplusplus
 }
 #endif
