@@ -391,37 +391,23 @@ float subghz_frequency_analyzer_worker_get_trigger_level(SubGhzFrequencyAnalyzer
     return instance->trigger_level;
 }
 
-SubGhzSetting* subghz_frequency_analyzer_worker_get_setting(
-    SubGhzFrequencyAnalyzerWorker* instance) {
-    furi_assert(instance);
-    return instance->setting;
-}
-
 uint32_t subghz_frequency_analyzer_get_nearest_frequency(
     SubGhzFrequencyAnalyzerWorker* instance,
     uint32_t input) {
-    uint32_t prev_freq = 0;
     uint32_t result = 0;
-    uint32_t current;
+    uint32_t best_diff = UINT32_MAX;
 
     for(size_t i = 0; i < subghz_setting_get_frequency_count(instance->setting); i++) {
-        current = subghz_setting_get_frequency(instance->setting, i);
+        uint32_t current = subghz_setting_get_frequency(instance->setting, i);
         if(current == 0) {
             continue;
         }
-        if(current == input) {
+        uint32_t diff = (current > input) ? (current - input) : (input - current);
+        if(diff < best_diff) {
+            best_diff = diff;
             result = current;
-            break;
+            if(diff == 0) break; // Exact match
         }
-        if(current > input && prev_freq < input) {
-            if(current - input < input - prev_freq) {
-                result = current;
-            } else {
-                result = prev_freq;
-            }
-            break;
-        }
-        prev_freq = current;
     }
 
     return result;

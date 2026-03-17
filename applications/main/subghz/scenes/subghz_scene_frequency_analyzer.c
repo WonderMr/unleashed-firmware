@@ -1,5 +1,6 @@
 #include "../subghz_i.h" // IWYU pragma: keep
 #include "../views/subghz_frequency_analyzer.h"
+#include <lib/subghz/subghz_setting.h>
 
 #define TAG "SubGhzSceneFrequencyAnalyzer"
 
@@ -68,6 +69,17 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
             }
 
             return true;
+        } else if(event.event == SubGhzCustomEventSceneAnalyzerFoundFrequency) {
+            uint32_t frequency = subghz_frequency_analyzer_get_last_detected(
+                subghz->subghz_frequency_analyzer);
+            if(frequency > 0) {
+                SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
+                if(subghz_setting_add_hopper_frequency(setting, frequency)) {
+                    subghz_setting_save_user_hopper(
+                        setting, EXT_PATH("subghz/assets/setting_user"));
+                }
+            }
+            return true;
         } else if(event.event == SubGhzCustomEventViewFreqAnalOkLong) {
             // Don't need to save, we already saved on short event (and on exit event too)
             subghz_rx_key_state_set(subghz, SubGhzRxKeyStateIDLE);
@@ -88,8 +100,4 @@ void subghz_scene_frequency_analyzer_on_exit(void* context) {
     subghz->last_settings->frequency_analyzer_trigger =
         subghz_frequency_analyzer_get_trigger_level(subghz->subghz_frequency_analyzer);
     subghz_last_settings_save(subghz->last_settings);
-
-    // Save hopper frequencies (including newly discovered ones) to user settings file
-    SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
-    subghz_setting_save_user_hopper(setting, EXT_PATH("subghz/assets/setting_user"));
 }

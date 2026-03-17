@@ -37,6 +37,7 @@ struct SubGhzFrequencyAnalyzer {
     uint8_t selected_index;
     uint8_t max_index;
     bool show_frame;
+    uint32_t frequency_last_detected; // For passing to scene via custom event
 };
 
 typedef struct {
@@ -410,13 +411,13 @@ void subghz_frequency_analyzer_pair_callback(
             false);
         instance->max_index = max_index;
 
-        // Add detected frequency to hopper dictionary and save immediately
+        // Signal the scene to add detected frequency on the main thread
+        // (avoids stack overflow on 2KB worker thread and race conditions)
         if(detected_frequency > 0) {
-            SubGhzSetting* setting =
-                subghz_frequency_analyzer_worker_get_setting(instance->worker);
-            if(subghz_setting_add_hopper_frequency(setting, detected_frequency)) {
-                subghz_setting_save_user_hopper(
-                    setting, EXT_PATH("subghz/assets/setting_user"));
+            instance->frequency_last_detected = detected_frequency;
+            if(instance->callback) {
+                instance->callback(
+                    SubGhzCustomEventSceneAnalyzerFoundFrequency, instance->context);
             }
         }
     } else if(!float_is_equal(rssi, 0.f) && !instance->locked) {
@@ -543,6 +544,11 @@ void subghz_frequency_analyzer_free(SubGhzFrequencyAnalyzer* instance) {
 View* subghz_frequency_analyzer_get_view(SubGhzFrequencyAnalyzer* instance) {
     furi_assert(instance);
     return instance->view;
+}
+
+uint32_t subghz_frequency_analyzer_get_last_detected(SubGhzFrequencyAnalyzer* instance) {
+    furi_assert(instance);
+    return instance->frequency_last_detected;
 }
 
 uint32_t subghz_frequency_analyzer_get_frequency_to_save(SubGhzFrequencyAnalyzer* instance) {

@@ -280,8 +280,19 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
             while(flipper_format_read_uint32(
                 fff_data_file, "Hopper_frequency", (uint32_t*)&temp_data32, 1)) {
                 if(furi_hal_subghz_is_frequency_valid(temp_data32)) {
-                    FURI_LOG_I(TAG, "Hopper frequency loaded %lu", temp_data32);
-                    FrequencyList_push_back(instance->hopper_frequencies, temp_data32);
+                    // Deduplicate: skip if already in list (e.g. default hopper frequencies)
+                    bool duplicate = false;
+                    for(size_t i = 0; i < FrequencyList_size(instance->hopper_frequencies);
+                        i++) {
+                        if(*FrequencyList_get(instance->hopper_frequencies, i) == temp_data32) {
+                            duplicate = true;
+                            break;
+                        }
+                    }
+                    if(!duplicate) {
+                        FURI_LOG_I(TAG, "Hopper frequency loaded %lu", temp_data32);
+                        FrequencyList_push_back(instance->hopper_frequencies, temp_data32);
+                    }
                 } else {
                     FURI_LOG_E(TAG, "Hopper frequency not supported %lu", temp_data32);
                 }
@@ -576,23 +587,29 @@ void subghz_setting_save_user_hopper(SubGhzSetting* instance, const char* file_p
         }
 
         // Preserve custom Frequency entries from existing file
-        for(size_t i = 0; i < FrequencyList_size(saved_frequencies); i++) {
+        bool write_ok = true;
+        for(size_t i = 0; write_ok && i < FrequencyList_size(saved_frequencies); i++) {
             uint32_t freq = *FrequencyList_get(saved_frequencies, i);
-            flipper_format_write_uint32(fff_write, "Frequency", &freq, 1);
+            write_ok = flipper_format_write_uint32(fff_write, "Frequency", &freq, 1);
         }
+        if(!write_ok) break;
 
         // Write all hopper frequencies
-        for(size_t i = 0; i < FrequencyList_size(instance->hopper_frequencies); i++) {
+        for(size_t i = 0; write_ok && i < FrequencyList_size(instance->hopper_frequencies); i++) {
             uint32_t freq = *FrequencyList_get(instance->hopper_frequencies, i);
-            if(!flipper_format_write_uint32(fff_write, "Hopper_frequency", &freq, 1)) {
-                FURI_LOG_E(TAG, "Unable to write Hopper_frequency %lu", freq);
-                break;
-            }
+            write_ok = flipper_format_write_uint32(fff_write, "Hopper_frequency", &freq, 1);
+        }
+        if(!write_ok) {
+            FURI_LOG_E(TAG, "Unable to write hopper frequencies");
+            break;
         }
 
         // Preserve Default_frequency
         if(has_default_frequency) {
-            flipper_format_write_uint32(fff_write, "Default_frequency", &default_frequency, 1);
+            if(!flipper_format_write_uint32(
+                   fff_write, "Default_frequency", &default_frequency, 1)) {
+                break;
+            }
         }
 
         FURI_LOG_I(
