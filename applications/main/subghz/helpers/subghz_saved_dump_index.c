@@ -131,9 +131,6 @@ bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
                 break;
             }
 
-            // Skip directories (DirWalk may still yield them)
-            if(fileinfo.flags & FSF_DIRECTORY) continue;
-
             // Skip files inside the assets directory
             if(furi_string_search_str(path, "/assets/") != FURI_STRING_FAILURE) continue;
 
