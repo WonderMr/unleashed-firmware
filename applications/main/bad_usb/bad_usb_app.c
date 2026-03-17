@@ -260,12 +260,8 @@ BadUsbApp* bad_usb_app_alloc(char* arg) {
 void bad_usb_app_free(BadUsbApp* app) {
     furi_assert(app);
 
-    if(app->bad_usb_script) {
-        bad_usb_script_close(app->bad_usb_script);
-        app->bad_usb_script = NULL;
-    }
-
-    // Views
+    // Free views and release GUI first — removing the fullscreen viewport
+    // lets the desktop render immediately while we do slow cleanup below
     view_dispatcher_remove_view(app->view_dispatcher, BadUsbAppViewWork);
     bad_usb_view_free(app->bad_usb_view);
 
@@ -289,7 +285,7 @@ void bad_usb_app_free(BadUsbApp* app) {
     view_dispatcher_remove_view(app->view_dispatcher, BadUsbAppViewByteInput);
     byte_input_free(app->byte_input);
 
-    // View dispatcher
+    // View dispatcher — this detaches from GUI, making desktop visible
     view_dispatcher_free(app->view_dispatcher);
     scene_manager_free(app->scene_manager);
 
@@ -298,14 +294,21 @@ void bad_usb_app_free(BadUsbApp* app) {
     furi_record_close(RECORD_NOTIFICATION);
     furi_record_close(RECORD_DIALOGS);
 
-    bad_usb_save_settings(app);
+    // Slow cleanup below — desktop is already visible and responsive
 
-    furi_string_free(app->file_path);
-    furi_string_free(app->keyboard_layout);
+    if(app->bad_usb_script) {
+        bad_usb_script_close(app->bad_usb_script);
+        app->bad_usb_script = NULL;
+    }
 
     if(app->usb_if_prev) {
         furi_check(furi_hal_usb_set_config(app->usb_if_prev, NULL));
     }
+
+    bad_usb_save_settings(app);
+
+    furi_string_free(app->file_path);
+    furi_string_free(app->keyboard_layout);
 
     free(app);
 }
