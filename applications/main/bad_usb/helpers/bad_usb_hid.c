@@ -21,7 +21,8 @@ void* hid_usb_init(BadUsbHidConfig* hid_cfg) {
 
 void hid_usb_deinit(void* inst) {
     UNUSED(inst);
-    furi_check(furi_hal_usb_set_config(NULL, NULL));
+    // USB config will be restored by the app on exit — skipping the intermediate
+    // NULL transition avoids an extra ~500ms USB reconnect delay
 }
 
 void hid_usb_set_state_callback(void* inst, HidStateCallback cb, void* context) {
