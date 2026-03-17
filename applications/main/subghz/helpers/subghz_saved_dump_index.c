@@ -96,7 +96,9 @@ bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
 
     if(index->is_built) return false;
 
-    subghz_saved_dump_index_clear_entries(index);
+    // Build into a temporary array so the existing index stays intact on failure
+    SubGhzSavedDumpEntryArray_t temp_entries;
+    SubGhzSavedDumpEntryArray_init(temp_entries);
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
     DirWalk* dir_walk = dir_walk_alloc(storage);
@@ -112,7 +114,7 @@ bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
     if(dir_walk_open(dir_walk, SUBGHZ_APP_FOLDER)) {
         FileInfo fileinfo;
         bool walk_error = false;
-        while(SubGhzSavedDumpEntryArray_size(index->entries) <
+        while(SubGhzSavedDumpEntryArray_size(temp_entries) <
               SUBGHZ_SAVED_DUMP_INDEX_MAX_ENTRIES) {
             DirWalkResult result = dir_walk_read(dir_walk, path, &fileinfo);
             if(result == DirWalkLast) {
@@ -154,7 +156,7 @@ bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
                     furi_string_get_cstr(protocol), bit, key_data, sizeof(uint64_t));
 
                 SubGhzSavedDumpEntry* entry =
-                    SubGhzSavedDumpEntryArray_push_raw(index->entries);
+                    SubGhzSavedDumpEntryArray_push_raw(temp_entries);
                 entry->hash = hash;
                 entry->filepath = furi_string_alloc_set(path);
                 entry->filename = furi_string_alloc();
@@ -179,24 +181,35 @@ bool subghz_saved_dump_index_build(SubGhzSavedDumpIndex* index) {
     dir_walk_free(dir_walk);
     furi_record_close(RECORD_STORAGE);
 
-    // Sort by hash for binary search
-    size_t count = SubGhzSavedDumpEntryArray_size(index->entries);
-    if(count > 1) {
-        qsort(
-            SubGhzSavedDumpEntryArray_get(index->entries, 0),
-            count,
-            sizeof(SubGhzSavedDumpEntry),
-            subghz_saved_dump_entry_compare);
-    }
-
     if(scan_success) {
+        // Sort temp entries by hash for binary search
+        size_t count = SubGhzSavedDumpEntryArray_size(temp_entries);
+        if(count > 1) {
+            qsort(
+                SubGhzSavedDumpEntryArray_get(temp_entries, 0),
+                count,
+                sizeof(SubGhzSavedDumpEntry),
+                subghz_saved_dump_entry_compare);
+        }
+
+        // Swap: discard old entries, take ownership of temp
+        subghz_saved_dump_index_clear_entries(index);
+        SubGhzSavedDumpEntryArray_move(index->entries, temp_entries);
+
         index->is_built = true;
         FURI_LOG_I(TAG, "Index built: %zu entries", count);
+        return true;
     } else {
+        // Scan failed — free temp entries, keep existing index intact
+        for
+            M_EACH(entry, temp_entries, SubGhzSavedDumpEntryArray_t) {
+                furi_string_free(entry->filename);
+                furi_string_free(entry->filepath);
+            }
+        SubGhzSavedDumpEntryArray_clear(temp_entries);
         FURI_LOG_W(TAG, "Index build failed, will retry on next enter");
+        return false;
     }
-
-    return true; // rebuild occurred (even if scan failed)
 }
 
 uint16_t subghz_saved_dump_index_lookup(

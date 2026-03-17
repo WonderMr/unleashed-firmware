@@ -266,8 +266,16 @@ void subghz_scene_receiver_on_enter(void* context) {
                 } else {
                     furi_string_set(disp, re_name);
                 }
+                uint16_t capped_mc =
+                    (mc > SUBGHZ_SAVED_DUMP_MAX_SELECTABLE) ?
+                        SUBGHZ_SAVED_DUMP_MAX_SELECTABLE :
+                        mc;
                 subghz_history_set_saved_info(
-                    history, i, furi_string_get_cstr(disp), furi_string_get_cstr(re_path), mc);
+                    history,
+                    i,
+                    furi_string_get_cstr(disp),
+                    furi_string_get_cstr(re_path),
+                    capped_mc);
                 furi_string_free(disp);
             }
         }
