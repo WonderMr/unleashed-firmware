@@ -150,6 +150,11 @@ bool subghz_scene_save_name_on_event(void* context, SceneManagerEvent event) {
                     subghz_file_name_clear(subghz);
                 }
 
+                // Invalidate saved dump index so it rebuilds on next receiver enter
+                if(subghz->saved_dump_index) {
+                    subghz_saved_dump_index_set_dirty(subghz->saved_dump_index);
+                }
+
                 scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSaveSuccess);
                 if(scene_manager_has_previous_scene(subghz->scene_manager, SubGhzSceneSavedMenu)) {
                     // Nothing, do not count editing as saving

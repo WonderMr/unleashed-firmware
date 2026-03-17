@@ -212,6 +212,7 @@ SubGhz* subghz_alloc(bool alloc_for_tx_only) {
             subghz->last_settings->preset_index,
             subghz->tx_power);
         subghz->history = subghz_history_alloc();
+        subghz->saved_dump_index = subghz_saved_dump_index_alloc();
     }
 
     subghz_rx_key_state_set(subghz, SubGhzRxKeyStateIDLE);
@@ -323,6 +324,7 @@ void subghz_free(SubGhz* subghz, bool alloc_for_tx_only) {
 
     if(!alloc_for_tx_only) {
         subghz_history_free(subghz->history);
+        subghz_saved_dump_index_free(subghz->saved_dump_index);
     }
 
     free(subghz->gen_info);
