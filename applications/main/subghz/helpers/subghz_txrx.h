@@ -253,6 +253,8 @@ FlipperFormat* subghz_txrx_get_fff_data(SubGhzTxRx* instance);
  */
 SubGhzSetting* subghz_txrx_get_setting(SubGhzTxRx* instance);
 
+const SubGhzDevice* subghz_txrx_get_radio_device(SubGhzTxRx* instance);
+
 /**
  * Is it possible to save this protocol
  * 

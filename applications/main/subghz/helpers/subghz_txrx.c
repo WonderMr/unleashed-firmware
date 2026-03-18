@@ -402,6 +402,11 @@ SubGhzSetting* subghz_txrx_get_setting(SubGhzTxRx* instance) {
     return instance->setting;
 }
 
+const SubGhzDevice* subghz_txrx_get_radio_device(SubGhzTxRx* instance) {
+    furi_assert(instance);
+    return instance->radio_device;
+}
+
 void subghz_txrx_stop(SubGhzTxRx* instance) {
     furi_assert(instance);
 
