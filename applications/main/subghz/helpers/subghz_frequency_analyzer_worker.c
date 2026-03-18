@@ -408,9 +408,13 @@ void subghz_frequency_analyzer_worker_start(SubGhzFrequencyAnalyzerWorker* insta
     furi_thread_start(instance->thread);
 }
 
+void subghz_frequency_analyzer_worker_stop_request(SubGhzFrequencyAnalyzerWorker* instance) {
+    furi_assert(instance);
+    instance->worker_running = false;
+}
+
 void subghz_frequency_analyzer_worker_stop(SubGhzFrequencyAnalyzerWorker* instance) {
     furi_assert(instance);
-    furi_assert(instance->worker_running);
 
     instance->worker_running = false;
 
