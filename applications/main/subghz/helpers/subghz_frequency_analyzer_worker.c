@@ -296,6 +296,8 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
             }
         }
 
+        if(!instance->worker_running) break;
+
         // Deliver results fine
         if(frequency_rssi.rssi_fine > instance->trigger_level) {
             FURI_LOG_D(

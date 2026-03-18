@@ -110,6 +110,33 @@ LIST_DEF(FrequencyList, uint32_t)
 
 #define M_OPL_FrequencyList_t() LIST_OPLIST(FrequencyList)
 
+/**
+ * Insert a frequency into a FrequencyList in sorted (ascending) order.
+ * Maintains the list sorted so hopper scans frequencies sequentially by band.
+ */
+static void frequency_list_insert_sorted(FrequencyList_t list, uint32_t frequency) {
+    FrequencyList_it_t it;
+    FrequencyList_it_t prev;
+    bool has_prev = false;
+
+    for(FrequencyList_it(it, list); !FrequencyList_end_p(it); FrequencyList_next(it)) {
+        if(*FrequencyList_ref(it) >= frequency) {
+            break;
+        }
+        FrequencyList_it_set(prev, it);
+        has_prev = true;
+    }
+
+    if(!has_prev) {
+        // Insert at the beginning (before all existing elements)
+        FrequencyList_it_end(prev, list);
+        FrequencyList_insert(list, prev, frequency);
+    } else {
+        // Insert after prev (which points to last element < frequency)
+        FrequencyList_insert(list, prev, frequency);
+    }
+}
+
 typedef struct {
     SubGhzSettingCustomPresetItemArray_t data;
 } SubGhzSettingCustomPresetStruct;
@@ -291,7 +318,7 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
                     }
                     if(!duplicate) {
                         FURI_LOG_I(TAG, "Hopper frequency loaded %lu", temp_data32);
-                        FrequencyList_push_back(instance->hopper_frequencies, temp_data32);
+                        frequency_list_insert_sorted(instance->hopper_frequencies, temp_data32);
                     }
                 } else {
                     FURI_LOG_E(TAG, "Hopper frequency not supported %lu", temp_data32);
@@ -503,8 +530,8 @@ bool subghz_setting_add_hopper_frequency(SubGhzSetting* instance, uint32_t frequ
         }
     }
 
-    // Add to hopper list
-    FrequencyList_push_back(instance->hopper_frequencies, frequency);
+    // Add to hopper list in sorted order (so Read mode scans sequentially by band)
+    frequency_list_insert_sorted(instance->hopper_frequencies, frequency);
 
     // Also add to main frequency list if absent (for nearest-frequency matching)
     bool found_in_main = false;

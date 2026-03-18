@@ -347,10 +347,9 @@ void subghz_frequency_analyzer_pair_callback(
         if(instance->callback) {
             instance->callback(SubGhzCustomEventSceneAnalyzerUnlock, instance->context);
         }
-        //update history
+        //update history (increment rx_count for repeated detections)
         instance->show_frame = true;
         uint8_t max_index = instance->max_index;
-        uint32_t detected_frequency = 0;
         with_view_model(
             instance->view,
             SubGhzFrequencyAnalyzerModel * model,
@@ -358,7 +357,6 @@ void subghz_frequency_analyzer_pair_callback(
                 bool in_array = false;
                 uint32_t normal_frequency = subghz_frequency_analyzer_get_nearest_frequency(
                     instance->worker, model->frequency);
-                detected_frequency = normal_frequency;
                 for(size_t i = 0; i < MAX_HISTORY; i++) {
                     if(model->history_frequency[i] == normal_frequency) {
                         in_array = true;
@@ -411,19 +409,6 @@ void subghz_frequency_analyzer_pair_callback(
             false);
         instance->max_index = max_index;
 
-        // Signal the scene to add detected frequency on the main thread
-        // (avoids stack overflow on 2KB worker thread and race conditions)
-        if(detected_frequency > 0) {
-            with_view_model(
-                instance->view,
-                SubGhzFrequencyAnalyzerModel * model,
-                { model->frequency_last_detected = detected_frequency; },
-                false);
-            if(instance->callback) {
-                instance->callback(
-                    SubGhzCustomEventSceneAnalyzerFoundFrequency, instance->context);
-            }
-        }
     } else if(!float_is_equal(rssi, 0.f) && !instance->locked) {
         // There is some signal
         FURI_LOG_I(TAG, "rssi = %.2f, frequency = %ld Hz", (double)rssi, frequency);
@@ -433,6 +418,81 @@ void subghz_frequency_analyzer_pair_callback(
         instance->rssi_last = rssi;
         if(instance->callback) {
             instance->callback(SubGhzCustomEventSceneAnalyzerLock, instance->context);
+        }
+
+        // Update history immediately on detection (don't wait for signal loss)
+        uint32_t normal_frequency =
+            subghz_frequency_analyzer_get_nearest_frequency(instance->worker, frequency);
+        if(normal_frequency > 0) {
+            instance->show_frame = true;
+            uint8_t max_index = instance->max_index;
+            with_view_model(
+                instance->view,
+                SubGhzFrequencyAnalyzerModel * model,
+                {
+                    bool in_array = false;
+                    for(size_t i = 0; i < MAX_HISTORY; i++) {
+                        if(model->history_frequency[i] == normal_frequency) {
+                            in_array = true;
+                            if(model->history_frequency[i] > 0) {
+                                if(model->history_frequency_rx_count[i] == 0) {
+                                    model->history_frequency_rx_count[i]++;
+                                }
+                                model->history_frequency_rx_count[i]++;
+                            }
+                            if(i > 0) {
+                                size_t offset = 0;
+                                uint8_t temp_rx_count =
+                                    model->history_frequency_rx_count[i];
+                                for(size_t j = MAX_HISTORY - 1; j > 0; j--) {
+                                    if(j == i) {
+                                        offset++;
+                                    }
+                                    model->history_frequency[j] =
+                                        model->history_frequency[j - offset];
+                                    model->history_frequency_rx_count[j] =
+                                        model->history_frequency_rx_count[j - offset];
+                                }
+                                model->history_frequency[0] = normal_frequency;
+                                model->history_frequency_rx_count[0] = temp_rx_count;
+                            }
+                            break;
+                        }
+                    }
+                    if(!in_array) {
+                        model->history_frequency[3] = model->history_frequency[2];
+                        model->history_frequency[2] = model->history_frequency[1];
+                        model->history_frequency[1] = model->history_frequency[0];
+                        model->history_frequency[0] = normal_frequency;
+                        model->history_frequency_rx_count[3] =
+                            model->history_frequency_rx_count[2];
+                        model->history_frequency_rx_count[2] =
+                            model->history_frequency_rx_count[1];
+                        model->history_frequency_rx_count[1] =
+                            model->history_frequency_rx_count[0];
+                        model->history_frequency_rx_count[0] = 0;
+                    }
+                    if(max_index < MAX_HISTORY) {
+                        for(size_t i = 0; i < MAX_HISTORY; i++) {
+                            if(model->history_frequency[i] > 0) {
+                                max_index = i + 1;
+                            }
+                        }
+                    }
+                },
+                false);
+            instance->max_index = max_index;
+
+            // Signal the scene to save frequency to hopper
+            with_view_model(
+                instance->view,
+                SubGhzFrequencyAnalyzerModel * model,
+                { model->frequency_last_detected = normal_frequency; },
+                false);
+            if(instance->callback) {
+                instance->callback(
+                    SubGhzCustomEventSceneAnalyzerFoundFrequency, instance->context);
+            }
         }
     }
 
