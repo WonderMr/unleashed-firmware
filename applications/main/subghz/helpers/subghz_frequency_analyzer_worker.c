@@ -185,8 +185,9 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
 
                 cc1101_switch_to_idle(spi);
                 frequency = cc1101_set_frequency(spi, current_frequency);
-                // Auto-calibration on IDLE->RX (MCSM0=0x18), no manual calibrate needed
+                // Auto-calibration on IDLE->RX (MCSM0=0x18), wait for RX state
                 cc1101_switch_to_rx(spi);
+                cc1101_wait_status_state(spi, CC1101StateRX, 10000);
                 furi_hal_spi_release(spi);
 
                 furi_delay_us(800); // RSSI settling for 650kHz BW
@@ -237,8 +238,9 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
                 if(furi_hal_subghz_is_frequency_valid(i)) {
                     cc1101_switch_to_idle(spi);
                     frequency = cc1101_set_frequency(spi, i);
-                    // Auto-calibration on IDLE->RX (MCSM0=0x18)
+                    // Auto-calibration on IDLE->RX (MCSM0=0x18), wait for RX state
                     cc1101_switch_to_rx(spi);
+                    cc1101_wait_status_state(spi, CC1101StateRX, 10000);
                     furi_hal_spi_release(spi);
 
                     furi_delay_ms(2); // Fine scan needs longer settling (58kHz BW)

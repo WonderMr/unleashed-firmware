@@ -524,6 +524,7 @@ bool subghz_setting_add_hopper_frequency(SubGhzSetting* instance, uint32_t frequ
 
 void subghz_setting_save_user_hopper(SubGhzSetting* instance, const char* file_path) {
     furi_check(instance);
+    furi_check(file_path);
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
 

@@ -37,7 +37,6 @@ struct SubGhzFrequencyAnalyzer {
     uint8_t selected_index;
     uint8_t max_index;
     bool show_frame;
-    uint32_t frequency_last_detected; // For passing to scene via custom event
 };
 
 typedef struct {
@@ -54,6 +53,7 @@ typedef struct {
     uint8_t max_index;
     bool show_frame;
     bool is_ext_radio;
+    uint32_t frequency_last_detected; // For passing to scene via custom event
 } SubGhzFrequencyAnalyzerModel;
 
 void subghz_frequency_analyzer_set_callback(
@@ -414,7 +414,11 @@ void subghz_frequency_analyzer_pair_callback(
         // Signal the scene to add detected frequency on the main thread
         // (avoids stack overflow on 2KB worker thread and race conditions)
         if(detected_frequency > 0) {
-            instance->frequency_last_detected = detected_frequency;
+            with_view_model(
+                instance->view,
+                SubGhzFrequencyAnalyzerModel * model,
+                { model->frequency_last_detected = detected_frequency; },
+                false);
             if(instance->callback) {
                 instance->callback(
                     SubGhzCustomEventSceneAnalyzerFoundFrequency, instance->context);
@@ -494,6 +498,7 @@ void subghz_frequency_analyzer_enter(void* context) {
             model->history_frequency_rx_count[1] = 0;
             model->history_frequency_rx_count[0] = 0;
             model->frequency_to_save = 0;
+            model->frequency_last_detected = 0;
             model->trigger = RSSI_MIN;
             model->is_ext_radio =
                 (subghz_txrx_radio_device_get(instance->txrx) != SubGhzRadioDeviceTypeInternal);
@@ -548,7 +553,13 @@ View* subghz_frequency_analyzer_get_view(SubGhzFrequencyAnalyzer* instance) {
 
 uint32_t subghz_frequency_analyzer_get_last_detected(SubGhzFrequencyAnalyzer* instance) {
     furi_assert(instance);
-    return instance->frequency_last_detected;
+    uint32_t frequency;
+    with_view_model(
+        instance->view,
+        SubGhzFrequencyAnalyzerModel * model,
+        { frequency = model->frequency_last_detected; },
+        false);
+    return frequency;
 }
 
 uint32_t subghz_frequency_analyzer_get_frequency_to_save(SubGhzFrequencyAnalyzer* instance) {
