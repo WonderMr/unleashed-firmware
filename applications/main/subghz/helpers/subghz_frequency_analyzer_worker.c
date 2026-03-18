@@ -379,6 +379,11 @@ SubGhzFrequencyAnalyzerWorker* subghz_frequency_analyzer_worker_alloc(void* cont
     instance->setting = subghz_txrx_get_setting(subghz->txrx);
     instance->radio_device = subghz_txrx_get_radio_device(subghz->txrx);
     instance->trigger_level = subghz->last_settings->frequency_analyzer_trigger;
+    instance->worker_running = false;
+    instance->sample_hold_counter = 0;
+    instance->filVal = 0;
+    instance->pair_callback = NULL;
+    instance->context = NULL;
     return instance;
 }
 

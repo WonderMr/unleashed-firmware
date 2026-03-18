@@ -2,6 +2,7 @@
 #include <lib/subghz/subghz_setting.h>
 
 #define TAG "SubGhzSceneDetectedFrequencies"
+#define LABEL_SIZE 16
 
 static const char* const on_off_text[] = {"OFF", "ON"};
 
@@ -32,18 +33,28 @@ void subghz_scene_detected_frequencies_on_enter(void* context) {
 
     size_t count = subghz_setting_get_hopper_frequency_count(setting);
 
+    // Allocate heap labels that outlive the loop (freed in on_exit)
+    char** labels = NULL;
+    if(count > 0) {
+        labels = malloc(count * sizeof(char*));
+        for(size_t i = 0; i < count; i++) {
+            labels[i] = malloc(LABEL_SIZE);
+        }
+    }
+    scene_manager_set_scene_state(
+        subghz->scene_manager, SubGhzSceneDetectedFrequencies, (uint32_t)(uintptr_t)labels);
+
     for(size_t i = 0; i < count; i++) {
         uint32_t freq = subghz_setting_get_hopper_frequency(setting, i);
-        char label[16];
         snprintf(
-            label,
-            sizeof(label),
+            labels[i],
+            LABEL_SIZE,
             "%lu.%02lu MHz",
             freq / 1000000,
             (freq % 1000000) / 10000);
 
         VariableItem* item = variable_item_list_add(
-            list, label, 2, subghz_scene_detected_frequencies_toggle_cb, subghz);
+            list, labels[i], 2, subghz_scene_detected_frequencies_toggle_cb, subghz);
 
         bool enabled = subghz_setting_is_hopper_frequency_enabled(setting, freq);
         variable_item_set_current_value_index(item, enabled ? 1 : 0);
@@ -61,6 +72,21 @@ bool subghz_scene_detected_frequencies_on_event(void* context, SceneManagerEvent
 
 void subghz_scene_detected_frequencies_on_exit(void* context) {
     SubGhz* subghz = context;
+    SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
+    size_t count = subghz_setting_get_hopper_frequency_count(setting);
+
+    // Free heap-allocated labels
+    char** labels = (char**)(uintptr_t)scene_manager_get_scene_state(
+        subghz->scene_manager, SubGhzSceneDetectedFrequencies);
+    if(labels) {
+        for(size_t i = 0; i < count; i++) {
+            free(labels[i]);
+        }
+        free(labels);
+        scene_manager_set_scene_state(
+            subghz->scene_manager, SubGhzSceneDetectedFrequencies, 0);
+    }
+
     variable_item_list_set_selected_item(subghz->variable_item_list, 0);
     variable_item_list_reset(subghz->variable_item_list);
 }

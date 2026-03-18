@@ -493,6 +493,14 @@ void subghz_frequency_analyzer_enter(void* context) {
     furi_assert(context);
     SubGhzFrequencyAnalyzer* instance = (SubGhzFrequencyAnalyzer*)context;
 
+    // Initialize state before starting worker (worker callback may fire immediately)
+    instance->rssi_last = 0;
+    instance->selected_index = 0;
+    instance->max_index = 0;
+    instance->show_frame = false;
+    instance->frequency_last_locked = 0;
+    instance->locked = false;
+
     //Start worker
     instance->worker = subghz_frequency_analyzer_worker_alloc(instance->context);
 
@@ -502,14 +510,6 @@ void subghz_frequency_analyzer_enter(void* context) {
         instance);
 
     subghz_frequency_analyzer_worker_start(instance->worker);
-
-    instance->rssi_last = 0;
-    instance->selected_index = 0;
-    instance->max_index = 0;
-    instance->show_frame = false;
-    instance->frequency_last_locked = 0;
-    instance->locked = false;
-    //subghz_frequency_analyzer_worker_set_trigger_level(instance->worker, RSSI_MIN);
 
     with_view_model(
         instance->view,

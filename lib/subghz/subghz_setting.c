@@ -202,6 +202,7 @@ static void subghz_setting_load_default_region(
 
     FrequencyList_reset(instance->frequencies);
     FrequencyList_reset(instance->hopper_frequencies);
+    FrequencyList_reset(instance->disabled_hopper_frequencies);
     subghz_setting_preset_reset(instance);
 
     while(*frequencies) {
@@ -271,6 +272,7 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
                 FURI_LOG_I(TAG, "Removing standard frequencies");
                 FrequencyList_reset(instance->frequencies);
                 FrequencyList_reset(instance->hopper_frequencies);
+                FrequencyList_reset(instance->disabled_hopper_frequencies);
             } else {
                 FURI_LOG_I(TAG, "Keeping standard frequencies");
             }
