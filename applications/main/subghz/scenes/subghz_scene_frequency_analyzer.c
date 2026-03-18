@@ -75,8 +75,9 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
             if(frequency > 0) {
                 SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
                 if(subghz_setting_add_hopper_frequency(setting, frequency)) {
-                    subghz_setting_save_user_hopper(
-                        setting, EXT_PATH("subghz/assets/setting_user"));
+                    // Append only this one frequency (fast, ~1ms vs ~100ms full rewrite)
+                    subghz_setting_append_hopper_frequency(
+                        setting, EXT_PATH("subghz/assets/setting_user"), frequency);
                 }
             }
             return true;
@@ -98,6 +99,8 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
 void subghz_scene_frequency_analyzer_on_exit(void* context) {
     SubGhz* subghz = context;
     notification_message(subghz->notifications, &sequence_reset_rgb);
+
+    // No hopper save here — each new frequency is appended immediately on detection
 
     subghz->last_settings->frequency_analyzer_feedback_level =
         subghz_frequency_analyzer_feedback_level(subghz->subghz_frequency_analyzer, 0, false);

@@ -681,6 +681,37 @@ void subghz_setting_save_user_hopper(SubGhzSetting* instance, const char* file_p
     furi_record_close(RECORD_STORAGE);
 }
 
+void subghz_setting_append_hopper_frequency(
+    SubGhzSetting* instance,
+    const char* file_path,
+    uint32_t frequency) {
+    furi_check(instance);
+    furi_check(file_path);
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+
+    // If file doesn't exist, do a full save (creates header + all entries)
+    if(!storage_file_exists(storage, file_path)) {
+        furi_record_close(RECORD_STORAGE);
+        subghz_setting_save_user_hopper(instance, file_path);
+        return;
+    }
+
+    // Append single Hopper_frequency line
+    FlipperFormat* fff = flipper_format_file_alloc(storage);
+    if(flipper_format_file_open_append(fff, file_path)) {
+        if(flipper_format_write_uint32(fff, "Hopper_frequency", &frequency, 1)) {
+            FURI_LOG_I(TAG, "Appended hopper frequency %lu to %s", frequency, file_path);
+        } else {
+            FURI_LOG_E(TAG, "Failed to append hopper frequency %lu", frequency);
+        }
+    } else {
+        FURI_LOG_E(TAG, "Failed to open file for append: %s", file_path);
+    }
+    flipper_format_free(fff);
+    furi_record_close(RECORD_STORAGE);
+}
+
 bool subghz_setting_is_hopper_frequency_enabled(SubGhzSetting* instance, uint32_t frequency) {
     furi_check(instance);
     for(size_t i = 0; i < FrequencyList_size(instance->disabled_hopper_frequencies); i++) {
