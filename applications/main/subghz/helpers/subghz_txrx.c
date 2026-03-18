@@ -456,12 +456,23 @@ void subghz_txrx_hopper_update(SubGhzTxRx* instance, float stay_threshold) {
     } else {
         instance->hopper_state = SubGhzHopperStateRunning;
     }
-    // Select next frequency
-    if(instance->hopper_idx_frequency <
-       subghz_setting_get_hopper_frequency_count(instance->setting) - 1) {
-        instance->hopper_idx_frequency++;
-    } else {
-        instance->hopper_idx_frequency = 0;
+    // Select next enabled frequency (skip disabled ones)
+    {
+        size_t total = subghz_setting_get_hopper_frequency_count(instance->setting);
+        size_t checked = 0;
+        do {
+            if(instance->hopper_idx_frequency < total - 1) {
+                instance->hopper_idx_frequency++;
+            } else {
+                instance->hopper_idx_frequency = 0;
+            }
+            uint32_t freq = subghz_setting_get_hopper_frequency(
+                instance->setting, instance->hopper_idx_frequency);
+            if(subghz_setting_is_hopper_frequency_enabled(instance->setting, freq)) {
+                break;
+            }
+            checked++;
+        } while(checked < total);
     }
 
     if(instance->txrx_state == SubGhzTxRxStateRx) {

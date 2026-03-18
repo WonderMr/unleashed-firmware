@@ -15,6 +15,7 @@ enum SubGhzSettingIndex {
     SubGhzSettingIndexIgnoreNiceFlorS,
     SubGhzSettingIndexDeleteOldSignals,
     SubGhzSettingIndexSound,
+    SubGhzSettingIndexDetectedFrequencies,
     SubGhzSettingIndexResetToDefault,
     SubGhzSettingIndexLock,
     SubGhzSettingIndexRAWThresholdRSSI,
@@ -343,7 +344,9 @@ static void subghz_scene_receiver_config_set_delete_old_signals(VariableItem* it
 static void subghz_scene_receiver_config_var_list_enter_callback(void* context, uint32_t index) {
     furi_assert(context);
     SubGhz* subghz = context;
-    if(index == SubGhzSettingIndexLock) {
+    if(index == SubGhzSettingIndexDetectedFrequencies) {
+        scene_manager_next_scene(subghz->scene_manager, SubGhzSceneDetectedFrequencies);
+    } else if(index == SubGhzSettingIndexLock) {
         view_dispatcher_send_custom_event(
             subghz->view_dispatcher, SubGhzCustomEventSceneSettingLock);
     } else if(index == SubGhzSettingIndexResetToDefault) {
@@ -542,6 +545,9 @@ void subghz_scene_receiver_config_on_enter(void* context) {
 
     if(scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneReadRAW) !=
        SubGhzCustomEventManagerSet) {
+        // Detected frequencies management
+        variable_item_list_add(subghz->variable_item_list, "Detected Freqs", 1, NULL, NULL);
+
         // Reset to default
         variable_item_list_add(subghz->variable_item_list, "Reset to default", 1, NULL, NULL);
 

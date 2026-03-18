@@ -133,6 +133,7 @@ typedef struct {
 struct SubGhzSetting {
     FrequencyList_t frequencies;
     FrequencyList_t hopper_frequencies;
+    FrequencyList_t disabled_hopper_frequencies;
     SubGhzSettingCustomPresetStruct* preset;
 };
 
@@ -140,6 +141,7 @@ SubGhzSetting* subghz_setting_alloc(void) {
     SubGhzSetting* instance = malloc(sizeof(SubGhzSetting));
     FrequencyList_init(instance->frequencies);
     FrequencyList_init(instance->hopper_frequencies);
+    FrequencyList_init(instance->disabled_hopper_frequencies);
     instance->preset = malloc(sizeof(SubGhzSettingCustomPresetStruct));
     SubGhzSettingCustomPresetItemArray_init(instance->preset->data);
     return instance;
@@ -158,6 +160,7 @@ void subghz_setting_free(SubGhzSetting* instance) {
     furi_check(instance);
     FrequencyList_clear(instance->frequencies);
     FrequencyList_clear(instance->hopper_frequencies);
+    FrequencyList_clear(instance->disabled_hopper_frequencies);
     for
         M_EACH(item, instance->preset->data, SubGhzSettingCustomPresetItemArray_t) {
             furi_string_free(item->custom_preset_name);
@@ -321,6 +324,27 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
             }
             if(flipper_format_read_uint32(fff_data_file, "Default_frequency", &temp_data32, 1)) {
                 subghz_setting_set_default_frequency(instance, temp_data32);
+            }
+
+            // Load disabled hopper frequencies
+            if(!flipper_format_rewind(fff_data_file)) {
+                FURI_LOG_E(TAG, "Rewind error");
+                break;
+            }
+            while(flipper_format_read_uint32(
+                fff_data_file, "Disabled_hopper_frequency", &temp_data32, 1)) {
+                // Only store if this frequency is actually in the hopper list
+                bool in_hopper = false;
+                for(size_t i = 0; i < FrequencyList_size(instance->hopper_frequencies); i++) {
+                    if(*FrequencyList_get(instance->hopper_frequencies, i) == temp_data32) {
+                        in_hopper = true;
+                        break;
+                    }
+                }
+                if(in_hopper) {
+                    FrequencyList_push_back(instance->disabled_hopper_frequencies, temp_data32);
+                    FURI_LOG_I(TAG, "Disabled hopper frequency loaded %lu", temp_data32);
+                }
             }
 
             // custom preset (optional)
@@ -629,17 +653,69 @@ void subghz_setting_save_user_hopper(SubGhzSetting* instance, const char* file_p
             }
         }
 
-        FURI_LOG_I(
-            TAG,
-            "Saved %u hopper frequencies to %s",
-            FrequencyList_size(instance->hopper_frequencies),
-            file_path);
+        // Write disabled hopper frequencies
+        for(size_t i = 0; i < FrequencyList_size(instance->disabled_hopper_frequencies); i++) {
+            uint32_t freq = *FrequencyList_get(instance->disabled_hopper_frequencies, i);
+            if(!write_ok) break;
+            if(!flipper_format_write_uint32(
+                   fff_write, "Disabled_hopper_frequency", &freq, 1)) {
+                write_ok = false;
+            }
+        }
+
+        if(write_ok) {
+            FURI_LOG_I(
+                TAG,
+                "Saved %u hopper frequencies (%u disabled) to %s",
+                FrequencyList_size(instance->hopper_frequencies),
+                FrequencyList_size(instance->disabled_hopper_frequencies),
+                file_path);
+        }
     } while(false);
 
     FrequencyList_clear(saved_frequencies);
     furi_string_free(temp_str);
     flipper_format_free(fff_write);
     furi_record_close(RECORD_STORAGE);
+}
+
+bool subghz_setting_is_hopper_frequency_enabled(SubGhzSetting* instance, uint32_t frequency) {
+    furi_check(instance);
+    for(size_t i = 0; i < FrequencyList_size(instance->disabled_hopper_frequencies); i++) {
+        if(*FrequencyList_get(instance->disabled_hopper_frequencies, i) == frequency) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void subghz_setting_set_hopper_frequency_enabled(
+    SubGhzSetting* instance,
+    uint32_t frequency,
+    bool enabled) {
+    furi_check(instance);
+    if(enabled) {
+        // Remove from disabled list
+        for(size_t i = 0; i < FrequencyList_size(instance->disabled_hopper_frequencies); i++) {
+            if(*FrequencyList_get(instance->disabled_hopper_frequencies, i) == frequency) {
+                FrequencyList_it_t it;
+                FrequencyList_it(it, instance->disabled_hopper_frequencies);
+                for(size_t j = 0; j < i; j++) {
+                    FrequencyList_next(it);
+                }
+                FrequencyList_remove(instance->disabled_hopper_frequencies, it);
+                break;
+            }
+        }
+    } else {
+        // Add to disabled list if not already present
+        for(size_t i = 0; i < FrequencyList_size(instance->disabled_hopper_frequencies); i++) {
+            if(*FrequencyList_get(instance->disabled_hopper_frequencies, i) == frequency) {
+                return; // Already disabled
+            }
+        }
+        FrequencyList_push_back(instance->disabled_hopper_frequencies, frequency);
+    }
 }
 
 uint8_t subghz_setting_customs_presets_to_log(SubGhzSetting* instance) {

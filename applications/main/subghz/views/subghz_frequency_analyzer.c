@@ -255,7 +255,12 @@ bool subghz_frequency_analyzer_input(InputEvent* event, void* context) {
         }
 
         need_redraw = true;
-    } else if(is_press_or_repeat && event->key == InputKeyDown) {
+    } else if(event->type == InputTypeLong && event->key == InputKeyDown) {
+        // Long-press Down: open detected frequencies management
+        if(instance->callback) {
+            instance->callback(SubGhzCustomEventViewFreqAnalDetectedFreqs, instance->context);
+        }
+    } else if(event->type == InputTypeShort && event->key == InputKeyDown) {
         instance->show_frame = instance->max_index > 0;
         if(instance->show_frame) {
             instance->selected_index = (instance->selected_index + 1) % instance->max_index;

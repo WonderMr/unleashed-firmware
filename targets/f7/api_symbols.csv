@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,87.8,,
+Version,+,87.9,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/services/applications.h,,
 Header,+,applications/services/bt/bt_service/bt.h,,
@@ -3763,6 +3763,8 @@ Function,+,subghz_receiver_search_decoder_base_by_name,SubGhzProtocolDecoderBase
 Function,+,subghz_receiver_set_filter,void,"SubGhzReceiver*, SubGhzProtocolFlag"
 Function,+,subghz_receiver_set_rx_callback,void,"SubGhzReceiver*, SubGhzReceiverCallback, void*"
 Function,+,subghz_setting_add_hopper_frequency,_Bool,"SubGhzSetting*, uint32_t"
+Function,+,subghz_setting_is_hopper_frequency_enabled,_Bool,"SubGhzSetting*, uint32_t"
+Function,+,subghz_setting_set_hopper_frequency_enabled,void,"SubGhzSetting*, uint32_t, _Bool"
 Function,+,subghz_setting_alloc,SubGhzSetting*,
 Function,+,subghz_setting_customs_presets_to_log,uint8_t,SubGhzSetting*
 Function,+,subghz_setting_delete_custom_preset,_Bool,"SubGhzSetting*, const char*"

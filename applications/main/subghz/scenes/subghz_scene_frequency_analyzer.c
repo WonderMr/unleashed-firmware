@@ -80,6 +80,10 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
                 }
             }
             return true;
+        } else if(event.event == SubGhzCustomEventViewFreqAnalDetectedFreqs) {
+            scene_manager_next_scene(
+                subghz->scene_manager, SubGhzSceneDetectedFrequencies);
+            return true;
         } else if(event.event == SubGhzCustomEventViewFreqAnalOkLong) {
             // Don't need to save, we already saved on short event (and on exit event too)
             subghz_rx_key_state_set(subghz, SubGhzRxKeyStateIDLE);

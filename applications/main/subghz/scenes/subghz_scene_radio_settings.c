@@ -150,6 +150,8 @@ static void subghz_scene_receiver_config_set_timestamp_file_names(VariableItem* 
     subghz_last_settings_save(subghz->last_settings);
 }
 
+static void subghz_scene_radio_settings_enter_callback(void* context, uint32_t index);
+
 void subghz_scene_radio_settings_on_enter(void* context) {
     SubGhz* subghz = context;
 
@@ -231,12 +233,30 @@ void subghz_scene_radio_settings_on_enter(void* context) {
         variable_item_set_current_value_text(item, debug_pin_text[value_index]);
     }
 
+    // "Detected Frequencies" — navigable item (click to open)
+    item = variable_item_list_add(variable_item_list, "Detected Freqs", 1, NULL, NULL);
+    // Store the index of this item for the enter callback
+    scene_manager_set_scene_state(
+        subghz->scene_manager, SubGhzSceneExtModuleSettings, (uint32_t)(uintptr_t)item);
+
+    variable_item_list_set_enter_callback(
+        variable_item_list, subghz_scene_radio_settings_enter_callback, subghz);
     view_dispatcher_switch_to_view(subghz->view_dispatcher, SubGhzViewIdVariableItemList);
 }
 
-bool subghz_scene_radio_settings_on_event(void* context, SceneManagerEvent event) {
+static void subghz_scene_radio_settings_enter_callback(void* context, uint32_t index) {
     SubGhz* subghz = context;
-    UNUSED(subghz);
+    // Check if the clicked item is "Detected Freqs" by comparing the VariableItem pointer
+    VariableItem* detected_item = (VariableItem*)(uintptr_t)scene_manager_get_scene_state(
+        subghz->scene_manager, SubGhzSceneExtModuleSettings);
+    VariableItem* clicked_item = variable_item_list_get(subghz->variable_item_list, index);
+    if(clicked_item == detected_item) {
+        scene_manager_next_scene(subghz->scene_manager, SubGhzSceneDetectedFrequencies);
+    }
+}
+
+bool subghz_scene_radio_settings_on_event(void* context, SceneManagerEvent event) {
+    UNUSED(context);
     UNUSED(event);
 
     return false;

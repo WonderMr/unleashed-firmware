@@ -71,6 +71,25 @@ bool subghz_setting_add_hopper_frequency(SubGhzSetting* instance, uint32_t frequ
  */
 void subghz_setting_save_user_hopper(SubGhzSetting* instance, const char* file_path);
 
+/** Check if a hopper frequency is enabled (not in the disabled list).
+ *
+ * @param instance SubGhzSetting instance
+ * @param frequency frequency in Hz
+ * @return true if enabled, false if disabled
+ */
+bool subghz_setting_is_hopper_frequency_enabled(SubGhzSetting* instance, uint32_t frequency);
+
+/** Enable or disable a hopper frequency.
+ *
+ * @param instance SubGhzSetting instance
+ * @param frequency frequency in Hz
+ * @param enabled true to enable, false to disable
+ */
+void subghz_setting_set_hopper_frequency_enabled(
+    SubGhzSetting* instance,
+    uint32_t frequency,
+    bool enabled);
+
 #ifdef __cplusplus
 }
 #endif
