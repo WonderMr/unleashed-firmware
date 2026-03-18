@@ -253,6 +253,11 @@ FlipperFormat* subghz_txrx_get_fff_data(SubGhzTxRx* instance);
  */
 SubGhzSetting* subghz_txrx_get_setting(SubGhzTxRx* instance);
 
+/** Get the active radio device (internal or external CC1101).
+ *
+ * @param instance Pointer to a SubGhzTxRx
+ * @return const SubGhzDevice* pointer to the radio device
+ */
 const SubGhzDevice* subghz_txrx_get_radio_device(SubGhzTxRx* instance);
 
 /**
