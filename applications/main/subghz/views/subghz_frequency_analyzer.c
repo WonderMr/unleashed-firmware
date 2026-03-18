@@ -421,10 +421,8 @@ void subghz_frequency_analyzer_pair_callback(
         if(instance->callback) {
             instance->callback(SubGhzCustomEventSceneAnalyzerUnlock, instance->context);
         }
-        // Increment rx_count in history for the frequency that just ended
-        uint32_t normal_frequency = subghz_frequency_analyzer_get_nearest_frequency(
-            instance->worker, instance->frequency_last_locked);
-        subghz_frequency_analyzer_history_update(instance, normal_frequency);
+        // History was already updated on detection; no need to update again
+        // (doing so would double-count rx_count)
         instance->frequency_last_locked = 0;
 
     } else if(!float_is_equal(rssi, 0.f)) {

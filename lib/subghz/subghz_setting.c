@@ -113,28 +113,17 @@ LIST_DEF(FrequencyList, uint32_t)
 /**
  * Insert a frequency into a FrequencyList in sorted (ascending) order.
  * Maintains the list sorted so hopper scans frequencies sequentially by band.
+ * Note: FrequencyList_insert inserts BEFORE the iterator position.
  */
 static void frequency_list_insert_sorted(FrequencyList_t list, uint32_t frequency) {
     FrequencyList_it_t it;
-    FrequencyList_it_t prev;
-    bool has_prev = false;
-
     for(FrequencyList_it(it, list); !FrequencyList_end_p(it); FrequencyList_next(it)) {
         if(*FrequencyList_ref(it) >= frequency) {
             break;
         }
-        FrequencyList_it_set(prev, it);
-        has_prev = true;
     }
-
-    if(!has_prev) {
-        // Insert at the beginning (before all existing elements)
-        FrequencyList_it_end(prev, list);
-        FrequencyList_insert(list, prev, frequency);
-    } else {
-        // Insert after prev (which points to last element < frequency)
-        FrequencyList_insert(list, prev, frequency);
-    }
+    // Insert before the first element >= frequency (or at end if all are smaller)
+    FrequencyList_insert(list, it, frequency);
 }
 
 typedef struct {
