@@ -234,7 +234,7 @@ void subghz_scene_radio_settings_on_enter(void* context) {
     }
 
     // "Detected Frequencies" — navigable item (click to open)
-    item = variable_item_list_add(variable_item_list, "Detected Freqs", 1, NULL, NULL);
+    item = variable_item_list_add(variable_item_list, "Scan Frequencies", 1, NULL, NULL);
     // Store the index of this item for the enter callback
     scene_manager_set_scene_state(
         subghz->scene_manager, SubGhzSceneExtModuleSettings, (uint32_t)(uintptr_t)item);
@@ -246,7 +246,7 @@ void subghz_scene_radio_settings_on_enter(void* context) {
 
 static void subghz_scene_radio_settings_enter_callback(void* context, uint32_t index) {
     SubGhz* subghz = context;
-    // Check if the clicked item is "Detected Freqs" by comparing the VariableItem pointer
+    // Check if the clicked item is "Scan Frequencies" by comparing the VariableItem pointer
     VariableItem* detected_item = (VariableItem*)(uintptr_t)scene_manager_get_scene_state(
         subghz->scene_manager, SubGhzSceneExtModuleSettings);
     VariableItem* clicked_item = variable_item_list_get(subghz->variable_item_list, index);

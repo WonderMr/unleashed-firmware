@@ -546,7 +546,7 @@ void subghz_scene_receiver_config_on_enter(void* context) {
     if(scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneReadRAW) !=
        SubGhzCustomEventManagerSet) {
         // Detected frequencies management
-        variable_item_list_add(subghz->variable_item_list, "Detected Freqs", 1, NULL, NULL);
+        variable_item_list_add(subghz->variable_item_list, "Scan Frequencies", 1, NULL, NULL);
 
         // Reset to default
         variable_item_list_add(subghz->variable_item_list, "Reset to default", 1, NULL, NULL);
