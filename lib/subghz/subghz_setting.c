@@ -111,19 +111,32 @@ LIST_DEF(FrequencyList, uint32_t)
 #define M_OPL_FrequencyList_t() LIST_OPLIST(FrequencyList)
 
 /**
- * Insert a frequency into a FrequencyList in sorted (ascending) order.
- * Maintains the list sorted so hopper scans frequencies sequentially by band.
- * Note: FrequencyList_insert inserts BEFORE the iterator position.
+ * Sort a FrequencyList in ascending order (simple bubble sort on values).
+ * The list is small (<50 elements) so O(n^2) is fine.
  */
-static void frequency_list_insert_sorted(FrequencyList_t list, uint32_t frequency) {
-    FrequencyList_it_t it;
-    for(FrequencyList_it(it, list); !FrequencyList_end_p(it); FrequencyList_next(it)) {
-        if(*FrequencyList_ref(it) >= frequency) {
-            break;
+static void frequency_list_sort(FrequencyList_t list) {
+    bool swapped;
+    do {
+        swapped = false;
+        FrequencyList_it_t it;
+        FrequencyList_it(it, list);
+        if(FrequencyList_end_p(it)) return;
+
+        FrequencyList_it_t next;
+        FrequencyList_it_set(next, it);
+        FrequencyList_next(next);
+
+        while(!FrequencyList_end_p(next)) {
+            if(*FrequencyList_ref(it) > *FrequencyList_ref(next)) {
+                uint32_t tmp = *FrequencyList_ref(it);
+                *FrequencyList_ref(it) = *FrequencyList_ref(next);
+                *FrequencyList_ref(next) = tmp;
+                swapped = true;
+            }
+            FrequencyList_it_set(it, next);
+            FrequencyList_next(next);
         }
-    }
-    // Insert before the first element >= frequency (or at end if all are smaller)
-    FrequencyList_insert(list, it, frequency);
+    } while(swapped);
 }
 
 typedef struct {
@@ -312,12 +325,15 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
                     }
                     if(!duplicate) {
                         FURI_LOG_I(TAG, "Hopper frequency loaded %lu", temp_data32);
-                        frequency_list_insert_sorted(instance->hopper_frequencies, temp_data32);
+                        FrequencyList_push_back(instance->hopper_frequencies, temp_data32);
                     }
                 } else {
                     FURI_LOG_E(TAG, "Hopper frequency not supported %lu", temp_data32);
                 }
             }
+
+            // Sort hopper frequencies after loading
+            frequency_list_sort(instance->hopper_frequencies);
 
             // Default frequency (optional)
             if(!flipper_format_rewind(fff_data_file)) {
@@ -545,8 +561,9 @@ bool subghz_setting_add_hopper_frequency(SubGhzSetting* instance, uint32_t frequ
         }
     }
 
-    // Add to hopper list in sorted order (so Read mode scans sequentially by band)
-    frequency_list_insert_sorted(instance->hopper_frequencies, frequency);
+    // Add to hopper list and re-sort (so Read mode scans sequentially by band)
+    FrequencyList_push_back(instance->hopper_frequencies, frequency);
+    frequency_list_sort(instance->hopper_frequencies);
 
     // Also add to main frequency list if absent (for nearest-frequency matching)
     bool found_in_main = false;
@@ -689,25 +706,26 @@ void subghz_setting_append_hopper_frequency(
     furi_check(file_path);
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
-
-    // If file doesn't exist, do a full save (creates header + all entries)
-    if(!storage_file_exists(storage, file_path)) {
-        furi_record_close(RECORD_STORAGE);
-        subghz_setting_save_user_hopper(instance, file_path);
-        return;
-    }
-
-    // Append single Hopper_frequency line
     FlipperFormat* fff = flipper_format_file_alloc(storage);
-    if(flipper_format_file_open_append(fff, file_path)) {
-        if(flipper_format_write_uint32(fff, "Hopper_frequency", &frequency, 1)) {
-            FURI_LOG_I(TAG, "Appended hopper frequency %lu to %s", frequency, file_path);
-        } else {
-            FURI_LOG_E(TAG, "Failed to append hopper frequency %lu", frequency);
+
+    if(!storage_file_exists(storage, file_path)) {
+        // Create file with header only (lightweight, no full rewrite)
+        if(flipper_format_file_open_always(fff, file_path)) {
+            flipper_format_write_header_cstr(fff, SUBGHZ_SETTING_FILE_TYPE, SUBGHZ_SETTING_FILE_VERSION);
+            bool add_std = true;
+            flipper_format_write_bool(fff, "Add_standard_frequencies", &add_std, 1);
+            flipper_format_write_uint32(fff, "Hopper_frequency", &frequency, 1);
+            FURI_LOG_I(TAG, "Created settings file with hopper frequency %lu", frequency);
         }
     } else {
-        FURI_LOG_E(TAG, "Failed to open file for append: %s", file_path);
+        // Append single Hopper_frequency line (fast, ~1ms)
+        if(flipper_format_file_open_append(fff, file_path)) {
+            if(flipper_format_write_uint32(fff, "Hopper_frequency", &frequency, 1)) {
+                FURI_LOG_I(TAG, "Appended hopper frequency %lu", frequency);
+            }
+        }
     }
+
     flipper_format_free(fff);
     furi_record_close(RECORD_STORAGE);
 }
@@ -728,18 +746,26 @@ void subghz_setting_set_hopper_frequency_enabled(
     bool enabled) {
     furi_check(instance);
     if(enabled) {
-        // Remove from disabled list
-        for(size_t i = 0; i < FrequencyList_size(instance->disabled_hopper_frequencies); i++) {
-            if(*FrequencyList_get(instance->disabled_hopper_frequencies, i) == frequency) {
-                FrequencyList_it_t it;
-                FrequencyList_it(it, instance->disabled_hopper_frequencies);
-                for(size_t j = 0; j < i; j++) {
-                    FrequencyList_next(it);
-                }
-                FrequencyList_remove(instance->disabled_hopper_frequencies, it);
-                break;
+        // Remove from disabled list by rebuilding (FrequencyList_remove unreliable on singly-linked list)
+        size_t count = FrequencyList_size(instance->disabled_hopper_frequencies);
+        if(count == 0) return;
+        uint32_t* temp = malloc(count * sizeof(uint32_t));
+        if(!temp) {
+            FURI_LOG_E(TAG, "Out of memory: cannot enable hopper frequency %lu", frequency);
+            return;
+        }
+        size_t new_count = 0;
+        for(size_t i = 0; i < count; i++) {
+            uint32_t f = *FrequencyList_get(instance->disabled_hopper_frequencies, i);
+            if(f != frequency) {
+                temp[new_count++] = f;
             }
         }
+        FrequencyList_reset(instance->disabled_hopper_frequencies);
+        for(size_t i = 0; i < new_count; i++) {
+            FrequencyList_push_back(instance->disabled_hopper_frequencies, temp[i]);
+        }
+        free(temp);
     } else {
         // Add to disabled list if not already present
         for(size_t i = 0; i < FrequencyList_size(instance->disabled_hopper_frequencies); i++) {
