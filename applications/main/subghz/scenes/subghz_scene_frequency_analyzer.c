@@ -15,6 +15,14 @@ static const NotificationSequence sequence_saved = {
     NULL,
 };
 
+// Short green blink for signal detection (auto-resets, doesn't block new detects)
+static const NotificationSequence sequence_detect_blink = {
+    &message_green_255,
+    &message_delay_100,
+    &message_green_0,
+    NULL,
+};
+
 void subghz_scene_frequency_analyzer_callback(SubGhzCustomEvent event, void* context) {
     furi_assert(context);
     SubGhz* subghz = context;
@@ -36,7 +44,8 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
     SubGhz* subghz = context;
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == SubGhzCustomEventSceneAnalyzerLock) {
-            notification_message(subghz->notifications, &sequence_set_green_255);
+            // Short green blink (auto-resets, so new detects aren't blocked)
+            notification_message(subghz->notifications, &sequence_detect_blink);
             switch(subghz_frequency_analyzer_feedback_level(
                 subghz->subghz_frequency_analyzer,
                 SubGHzFrequencyAnalyzerFeedbackLevelAll,
@@ -53,6 +62,7 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
             notification_message(subghz->notifications, &sequence_display_backlight_on);
             return true;
         } else if(event.event == SubGhzCustomEventSceneAnalyzerUnlock) {
+            // LED already auto-reset by blink sequence, just ensure clean state
             notification_message(subghz->notifications, &sequence_reset_rgb);
             return true;
         } else if(event.event == SubGhzCustomEventViewFreqAnalOkShort) {
