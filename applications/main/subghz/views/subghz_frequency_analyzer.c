@@ -5,6 +5,8 @@
 #include <notification/notification_messages.h>
 #include <gui/elements.h>
 #include "../helpers/subghz_frequency_analyzer_worker.h"
+#include "../helpers/subghz_txrx.h"
+#include <lib/subghz/subghz_setting.h>
 
 #include <assets_icons.h>
 #include <float_tools.h>
@@ -436,24 +438,41 @@ void subghz_frequency_analyzer_pair_callback(
         uint32_t normal_frequency =
             subghz_frequency_analyzer_get_nearest_frequency(instance->worker, frequency);
 
+        // Check if nearest hopper frequency is disabled
+        bool freq_disabled = (normal_frequency > 0) &&
+            !subghz_setting_is_hopper_frequency_enabled(
+                subghz_txrx_get_setting(instance->txrx), normal_frequency);
+
+        if(freq_disabled) {
+            // Disabled frequency — don't update display, don't lock, don't save
+            // Just update RSSI bar and trigger display (no frequency shown)
+            with_view_model(
+                instance->view,
+                SubGhzFrequencyAnalyzerModel * model,
+                {
+                    model->rssi = rssi;
+                    model->trigger =
+                        subghz_frequency_analyzer_worker_get_trigger_level(instance->worker);
+                    model->feedback_level = instance->feedback_level;
+                },
+                true);
+            return;
+        }
+
         bool is_new_frequency =
             (normal_frequency > 0 && normal_frequency != instance->frequency_last_locked);
 
         if(is_new_frequency || !instance->locked) {
-            // New signal or new different frequency while locked
-            FURI_LOG_I(TAG, "rssi = %.2f, frequency = %ld Hz", (double)rssi, frequency);
+            // New enabled signal — feedback, history, save
             instance->rssi_last = rssi;
             instance->frequency_last_locked = normal_frequency;
 
-            // Feedback (vibro/sound)
             if(instance->callback) {
                 instance->callback(SubGhzCustomEventSceneAnalyzerLock, instance->context);
             }
 
-            // Update history immediately
             subghz_frequency_analyzer_history_update(instance, normal_frequency);
 
-            // Signal the scene to save frequency to hopper
             with_view_model(
                 instance->view,
                 SubGhzFrequencyAnalyzerModel * model,
@@ -466,7 +485,7 @@ void subghz_frequency_analyzer_pair_callback(
         }
     }
 
-    // Update values
+    // Update values (only reached for enabled frequencies or signal-lost)
     if(rssi >= instance->rssi_last && frequency != 0) {
         instance->rssi_last = rssi;
     }

@@ -226,6 +226,11 @@ static int32_t subghz_frequency_analyzer_worker_thread(void* context) {
             if(!instance->worker_running) break;
 
             uint32_t current_frequency = subghz_setting_get_frequency(instance->setting, i);
+            // Skip disabled frequencies — radio won't tune to them at all
+            if(!subghz_setting_is_hopper_frequency_enabled(
+                   instance->setting, current_frequency)) {
+                continue;
+            }
             if(subghz_devices_is_frequency_valid(device, current_frequency) &&
                (((current_frequency != 462750000) && (current_frequency != 467750000) &&
                  (current_frequency != 464000000)) &&
