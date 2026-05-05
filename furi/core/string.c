@@ -1,5 +1,6 @@
 #include "string.h"
 #include <m-string.h>
+#include <stdio.h>
 
 struct FuriString {
     string_t string;
@@ -186,7 +187,7 @@ int furi_string_cat_vprintf(FuriString* v, const char format[], va_list args) {
 
     int size = vsnprintf(&ptr[old_size], alloc - old_size, format, args);
 
-    if(size > 0 && (old_size + (size_t)size + 1 >= alloc)) {
+    if(size > 0 && (old_size + (size_t)size + 1 > alloc)) {
         // Buffer too small — grow and retry
         ptr = m_str1ng_fit2size(v->string, old_size + (size_t)size + 1);
         size = vsnprintf(
