@@ -1,5 +1,6 @@
 #include "../subghz_i.h" // IWYU pragma: keep
 #include "../views/subghz_frequency_analyzer.h"
+#include <lib/subghz/subghz_setting.h>
 
 #define TAG "SubGhzSceneFrequencyAnalyzer"
 
@@ -11,6 +12,14 @@ static const NotificationSequence sequence_saved = {
     &message_vibro_on,
     &message_delay_100,
     &message_vibro_off,
+    NULL,
+};
+
+// Short green blink for signal detection (auto-resets, doesn't block new detects)
+static const NotificationSequence sequence_detect_blink = {
+    &message_green_255,
+    &message_delay_100,
+    &message_green_0,
     NULL,
 };
 
@@ -35,7 +44,8 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
     SubGhz* subghz = context;
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == SubGhzCustomEventSceneAnalyzerLock) {
-            notification_message(subghz->notifications, &sequence_set_green_255);
+            // Short green blink (auto-resets, so new detects aren't blocked)
+            notification_message(subghz->notifications, &sequence_detect_blink);
             switch(subghz_frequency_analyzer_feedback_level(
                 subghz->subghz_frequency_analyzer,
                 SubGHzFrequencyAnalyzerFeedbackLevelAll,
@@ -52,6 +62,7 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
             notification_message(subghz->notifications, &sequence_display_backlight_on);
             return true;
         } else if(event.event == SubGhzCustomEventSceneAnalyzerUnlock) {
+            // LED already auto-reset by blink sequence, just ensure clean state
             notification_message(subghz->notifications, &sequence_reset_rgb);
             return true;
         } else if(event.event == SubGhzCustomEventViewFreqAnalOkShort) {
@@ -68,6 +79,22 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
             }
 
             return true;
+        } else if(event.event == SubGhzCustomEventSceneAnalyzerFoundFrequency) {
+            uint32_t frequency = subghz_frequency_analyzer_get_last_detected(
+                subghz->subghz_frequency_analyzer);
+            if(frequency > 0) {
+                SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
+                if(subghz_setting_add_hopper_frequency(setting, frequency)) {
+                    // Append only this one frequency (fast, ~1ms vs ~100ms full rewrite)
+                    subghz_setting_append_hopper_frequency(
+                        setting, EXT_PATH("subghz/assets/setting_user"), frequency);
+                }
+            }
+            return true;
+        } else if(event.event == SubGhzCustomEventViewFreqAnalDetectedFreqs) {
+            scene_manager_next_scene(
+                subghz->scene_manager, SubGhzSceneDetectedFrequencies);
+            return true;
         } else if(event.event == SubGhzCustomEventViewFreqAnalOkLong) {
             // Don't need to save, we already saved on short event (and on exit event too)
             subghz_rx_key_state_set(subghz, SubGhzRxKeyStateIDLE);
@@ -82,6 +109,8 @@ bool subghz_scene_frequency_analyzer_on_event(void* context, SceneManagerEvent e
 void subghz_scene_frequency_analyzer_on_exit(void* context) {
     SubGhz* subghz = context;
     notification_message(subghz->notifications, &sequence_reset_rgb);
+
+    // No hopper save here — each new frequency is appended immediately on detection
 
     subghz->last_settings->frequency_analyzer_feedback_level =
         subghz_frequency_analyzer_feedback_level(subghz->subghz_frequency_analyzer, 0, false);

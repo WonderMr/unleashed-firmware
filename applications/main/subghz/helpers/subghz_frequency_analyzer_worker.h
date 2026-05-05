@@ -49,8 +49,15 @@ void subghz_frequency_analyzer_worker_set_pair_callback(
  */
 void subghz_frequency_analyzer_worker_start(SubGhzFrequencyAnalyzerWorker* instance);
 
-/** Stop SubGhzFrequencyAnalyzerWorker
- * 
+/** Request worker to stop (non-blocking, does not wait for thread exit).
+ *  Call before navigation to reduce exit latency.
+ *
+ * @param instance SubGhzFrequencyAnalyzerWorker instance
+ */
+void subghz_frequency_analyzer_worker_stop_request(SubGhzFrequencyAnalyzerWorker* instance);
+
+/** Stop SubGhzFrequencyAnalyzerWorker (blocking, waits for thread exit)
+ *
  * @param instance SubGhzFrequencyAnalyzerWorker instance
  */
 void subghz_frequency_analyzer_worker_stop(SubGhzFrequencyAnalyzerWorker* instance);

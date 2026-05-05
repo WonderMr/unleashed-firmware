@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,87.8,,
+Version,+,87.9,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/services/applications.h,,
 Header,+,applications/services/bt/bt_service/bt.h,,
@@ -3762,6 +3762,9 @@ Function,+,subghz_receiver_reset,void,SubGhzReceiver*
 Function,+,subghz_receiver_search_decoder_base_by_name,SubGhzProtocolDecoderBase*,"SubGhzReceiver*, const char*"
 Function,+,subghz_receiver_set_filter,void,"SubGhzReceiver*, SubGhzProtocolFlag"
 Function,+,subghz_receiver_set_rx_callback,void,"SubGhzReceiver*, SubGhzReceiverCallback, void*"
+Function,+,subghz_setting_add_hopper_frequency,_Bool,"SubGhzSetting*, uint32_t"
+Function,+,subghz_setting_is_hopper_frequency_enabled,_Bool,"SubGhzSetting*, uint32_t"
+Function,+,subghz_setting_set_hopper_frequency_enabled,void,"SubGhzSetting*, uint32_t, _Bool"
 Function,+,subghz_setting_alloc,SubGhzSetting*,
 Function,+,subghz_setting_customs_presets_to_log,uint8_t,SubGhzSetting*
 Function,+,subghz_setting_delete_custom_preset,_Bool,"SubGhzSetting*, const char*"
@@ -3780,6 +3783,8 @@ Function,+,subghz_setting_get_preset_data_size,size_t,"SubGhzSetting*, size_t"
 Function,+,subghz_setting_get_preset_name,const char*,"SubGhzSetting*, size_t"
 Function,+,subghz_setting_load,void,"SubGhzSetting*, const char*"
 Function,+,subghz_setting_load_custom_preset,_Bool,"SubGhzSetting*, const char*, FlipperFormat*"
+Function,+,subghz_setting_append_hopper_frequency,void,"SubGhzSetting*, const char*, uint32_t"
+Function,+,subghz_setting_save_user_hopper,void,"SubGhzSetting*, const char*"
 Function,+,subghz_setting_set_default_frequency,void,"SubGhzSetting*, uint32_t"
 Function,+,subghz_transmitter_alloc_init,SubGhzTransmitter*,"SubGhzEnvironment*, const char*"
 Function,+,subghz_transmitter_deserialize,SubGhzProtocolStatus,"SubGhzTransmitter*, FlipperFormat*"

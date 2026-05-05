@@ -24,6 +24,7 @@ typedef enum {
     SubGhzCustomEventSceneShowOnlyRX,
     SubGhzCustomEventSceneAnalyzerLock,
     SubGhzCustomEventSceneAnalyzerUnlock,
+    SubGhzCustomEventSceneAnalyzerFoundFrequency,
     SubGhzCustomEventSceneSettingLock,
     SubGhzCustomEventSceneSettingResetToDefault,
 
@@ -61,6 +62,7 @@ typedef enum {
 
     SubGhzCustomEventViewFreqAnalOkShort,
     SubGhzCustomEventViewFreqAnalOkLong,
+    SubGhzCustomEventViewFreqAnalDetectedFreqs,
 
     SubGhzCustomEventByteInputDone,
 } SubGhzCustomEvent;
