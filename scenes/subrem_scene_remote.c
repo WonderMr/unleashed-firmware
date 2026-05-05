@@ -101,9 +101,21 @@ bool subrem_scene_remote_on_event(void* context, SceneManagerEvent event) {
             }
             return true;
         }
+    } else if(event.type == SceneManagerEventTypeTick) {
+        if(subghz_txrx_radio_device_get(app->txrx) != SubGhzRadioDeviceTypeInternal) {
+            if(!subghz_txrx_radio_device_is_available(app->txrx)) {
+                subrem_tx_stop_sub(app, true);
+                subrem_view_remote_set_state(
+                    app->subrem_remote_view, SubRemViewRemoteStateIdle, 0);
+                notification_message(app->notifications, &sequence_blink_stop);
+
+                popup_set_header(app->popup, "External Module\nNot Responding", 64, 20, AlignCenter, AlignCenter);
+                popup_set_timeout(app->popup, 2000);
+                popup_enable_timeout(app->popup);
+                view_dispatcher_switch_to_view(app->view_dispatcher, SubRemViewIDPopup);
+            }
+        }
     }
-    // } else if(event.type == SceneManagerEventTypeTick) {
-    // }
     return false;
 }
 

@@ -367,6 +367,13 @@ SubGhzRadioDeviceType
 */
 SubGhzRadioDeviceType subghz_txrx_radio_device_get(SubGhzTxRx* instance);
 
+/* Check if the current radio device is available and responding
+*
+* @param instance Pointer to a SubGhzTxRx
+* @return bool True if device is responding (always true for internal)
+*/
+bool subghz_txrx_radio_device_is_available(SubGhzTxRx* instance);
+
 /* Get RSSI the selected radio device to use
 *
 * @param instance Pointer to a SubGhzTxRx

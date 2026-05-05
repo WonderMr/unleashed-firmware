@@ -665,6 +665,14 @@ SubGhzRadioDeviceType subghz_txrx_radio_device_get(SubGhzTxRx* instance) {
     return instance->radio_device_type;
 }
 
+bool subghz_txrx_radio_device_is_available(SubGhzTxRx* instance) {
+    furi_assert(instance);
+    if(instance->radio_device_type == SubGhzRadioDeviceTypeInternal) {
+        return true;
+    }
+    return subghz_devices_is_connect(instance->radio_device);
+}
+
 float subghz_txrx_radio_device_get_rssi(SubGhzTxRx* instance) {
     furi_assert(instance);
     return subghz_devices_get_rssi(instance->radio_device);
